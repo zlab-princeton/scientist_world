@@ -29,6 +29,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import math
 import threading
 import time
 import os
@@ -265,7 +266,8 @@ def _compute_comparison(
                 coeff = float(meta.get("coefficient", 1.0) or 0.0)
                 higher = bool(meta.get("higher_is_better", True))
                 if not isinstance(agent_metrics, dict) or metric not in agent_metrics \
-                        or not isinstance(agent_metrics.get(metric), (int, float)):
+                        or not isinstance(agent_metrics.get(metric), (int, float)) \
+                        or not math.isfinite(agent_metrics[metric]):
                     missing.append({
                         "experiment": exp_name, "method": method, "metric": metric,
                         "source": float(src_val),

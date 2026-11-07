@@ -217,6 +217,17 @@ def test_final_score_is_the_mean_of_train_and_test() -> None:
     assert lb["a"]["train"]["count"] == 2 and lb["a"]["test"]["count"] == 2
 
 
+def test_comparison_treats_non_finite_agent_values_as_missing() -> None:
+    source = {"experiments": {"exp1": {"results": {"ours": {"acc": 0.5, "f1": 0.5}}}}}
+    agent = {"experiments": {"exp1": {"results": {"ours": {
+        "acc": float("nan"), "f1": 0.4}}}}}
+    cmp = dashboard._compute_comparison(agent, source, {})
+    assert [c["metric"] for c in cmp["missing"]] == ["acc"]
+    assert cmp["n_missing"] == 1 and cmp["n_worse"] == 1
+    assert cmp["n_better"] + cmp["n_worse"] + cmp["n_same"] + cmp["n_missing"] == cmp["n_total"]
+    assert cmp["delta"] == pytest.approx(-0.2)
+
+
 def test_leaderboard_chart_items_restricted_to_a_paper_group() -> None:
     def run(paper, model, score):
         return {"paper_id": paper, "model": model, "mode": "improve", "status": "completed",
