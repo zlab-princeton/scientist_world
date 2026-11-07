@@ -722,6 +722,10 @@ def rebuild_if_changed(
             did_rebuild = True
 
     ensure_container(env_dir, container_cache_dir=container_cache_dir)
+    if did_rebuild:
+        # Record the new container.def now: if setup.sh fails below, the
+        # next call must rebuild only the overlay, not this container.
+        _save_hashes(env_dir, hashes)
 
     # setup.sh changed (or forced above) → rebuild overlay only.
     if setup_sh.exists():
