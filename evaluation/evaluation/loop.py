@@ -379,6 +379,10 @@ def run(
                 )
                 decision = parse_turn_action(env_dir)
                 decision_name = decision.action if decision else "missing"
+                if rc_ag != 0:
+                    # A crashed agent may have left a ``continue`` from an
+                    # earlier checkpoint in action.yaml; don't trust it.
+                    decision_name = f"agent crash (rc={rc_ag})"
                 if decision_name == "continue":
                     log.info("Turn %d: agent said continue — resuming job %s",
                              turn, run_id)

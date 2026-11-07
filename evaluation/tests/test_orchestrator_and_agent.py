@@ -243,3 +243,56 @@ def test_every_job_requests_at_least_one_gpu(tmp_path: Path) -> None:
     assert parse_turn_action(tmp_path).gpus == 1
     (tmp_path / "action.yaml").write_text("action: submit\ngpus: many\n")
     assert parse_turn_action(tmp_path).gpus == 1
+
+
+# ── Checkpoints ──────────────────────────────────────────────────────────
+
+
+def test_agent_crash_at_a_checkpoint_cancels_the_job(tmp_path: Path, monkeypatch) -> None:
+    """A stale ``continue`` from an earlier checkpoint must not keep the
+    job running when the agent crashes at the next one."""
+    from evaluation import loop
+
+    events = iter([{"event": "awaiting_response"}, {"event": "awaiting_response"}])
+    calls: list[str] = []
+
+    class _Nexus:
+        def submit_job(self, *args, **kwargs):
+            return "run-1", "hive-1"
+
+        def get_job(self, run_id):
+            return {}
+
+        def wait_for_job(self, project_id, run_id, timeout=300):
+            if "cancel" in calls:
+                return {"event": "cancelled"}
+            return next(events, {"event": "completed"})
+
+        def continue_job(self, run_id):
+            calls.append("continue")
+
+        def cancel_job(self, run_id):
+            calls.append("cancel")
+
+    # turn 1: submit; checkpoint 1: continue; checkpoint 2: crash; turn 2: done
+    script = iter([("submit", 0), ("continue", 0), (None, 1), ("done", 0)])
+
+    def invoke(env_dir, profile, prompt, **kwargs):
+        action, rc = next(script)
+        if action:
+            (env_dir / "action.yaml").write_text(f"action: {action}\n")
+        return rc, "", ""
+
+    monkeypatch.setattr(loop.agent, "invoke", invoke)
+    monkeypatch.setattr(loop._config, "load", lambda: {})
+    monkeypatch.setattr(loop._config, "nexus_pick", lambda **kwargs: "gpu")
+    monkeypatch.setattr(loop._container, "rebuild_if_changed",
+                        lambda env_dir, **kwargs: (None, None, False))
+    monkeypatch.setattr(loop.git, "commit", lambda *args, **kwargs: None)
+
+    result = loop.run(
+        tmp_path, Profile(name="p", scaffold="codex", model="m"), _Nexus(),
+        "proj", "start", max_turns=3, gpu_budget_hours=10.0,
+    )
+    assert calls == ["continue", "cancel"]
+    assert result.reason == "done"
