@@ -107,7 +107,19 @@ class NexusBridge:
         if shared_dirs:
             payload["shared_dirs"] = shared_dirs
 
-        result = self._post("/api/projects", payload)
+        try:
+            result = self._post("/api/projects", payload)
+        except urllib.error.HTTPError as exc:
+            # Nexus reports errors (e.g. 409 project exists) as non-2xx
+            # responses, which urlopen raises instead of returning.
+            body = ""
+            try:
+                body = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"Nexus create_project error (HTTP {exc.code}): {body or exc}"
+            ) from exc
         if "error" in result:
             raise RuntimeError(f"Nexus create_project error: {result['error']}")
         log.info("Created Nexus project %s", project_id)
