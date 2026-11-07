@@ -1125,6 +1125,44 @@ class TestDispatchQueued:
         assert set(launch_calls) == {"dispatchpool05"}
 
 
+class TestApiSubmit:
+    def _post(self, app, tmp_path, **kwargs):
+        with patch("hive.dashboard.get_ray_tmpdir", return_value=str(tmp_path)), \
+             patch("hive.dashboard.Dispatcher") as mock_dispatcher:
+            mock_dispatcher.load_state.return_value = None
+            submit = mock_dispatcher.return_value.submit_async
+            submit.return_value = types.SimpleNamespace(job_id="job1", status="queued")
+            with app.test_client() as c:
+                resp = c.post("/api/submit", **kwargs)
+        return resp, submit
+
+    def test_malformed_json_returns_400(self, app, tmp_hive_dir, tmp_path):
+        resp, submit = self._post(app, tmp_path, data="{not json",
+                                  content_type="application/json")
+        assert resp.status_code == 400
+        submit.assert_not_called()
+
+    def test_non_object_body_returns_400(self, app, tmp_hive_dir, tmp_path):
+        resp, submit = self._post(app, tmp_path, json=5)
+        assert resp.status_code == 400
+        submit.assert_not_called()
+
+    def test_non_integer_num_gpus_returns_400(self, app, tmp_hive_dir, tmp_path):
+        resp, submit = self._post(app, tmp_path, json={"command": "echo hi", "num_gpus": "two"})
+        assert resp.status_code == 400
+        assert "num_gpus" in resp.get_json()["error"]
+        submit.assert_not_called()
+
+    def test_numeric_string_fields_are_stored_as_int(self, app, tmp_hive_dir, tmp_path):
+        resp, submit = self._post(app, tmp_path, json={
+            "command": "echo hi", "num_gpus": "2", "timeout_sec": "60",
+        })
+        assert resp.status_code == 200
+        kwargs = submit.call_args.kwargs
+        assert kwargs["num_gpus"] == 2
+        assert kwargs["timeout_sec"] == 60
+
+
 class TestApiCancel:
     def test_running_job_not_cancelled_when_ray_unreachable(self, app, tmp_hive_dir, tmp_path):
         """Cancel must fail closed if Ray cannot be reached for a running job."""

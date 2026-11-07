@@ -1238,21 +1238,39 @@ def create_app(config: HiveConfig = None, start_health_thread: bool = True) -> F
     def api_submit():
         _ensure_ray()
         try:
-            data = request.get_json(force=True)
-            if not data or "command" not in data:
+            data = request.get_json(force=True, silent=True)
+            if not isinstance(data, dict):
+                return jsonify({"error": "Request body must be a JSON object"}), 400
+            if "command" not in data:
                 return jsonify({"error": "Missing 'command' field"}), 400
 
+            # Coerce integer fields up front: a non-integer value stored in
+            # meta.json breaks arithmetic later in the dispatch pass.
+            int_fields = {}
+            for field, default in (("num_gpus", 1), ("num_cpus", 1), ("memory_mb", 0),
+                                   ("max_retries", 0), ("timeout_sec", None)):
+                value = data.get(field, default)
+                if value is None:
+                    int_fields[field] = None
+                    continue
+                try:
+                    if isinstance(value, bool) or (isinstance(value, float) and not value.is_integer()):
+                        raise ValueError
+                    int_fields[field] = int(value)
+                except (TypeError, ValueError):
+                    return jsonify({"error": f"'{field}' must be an integer"}), 400
+
             command = data["command"]
-            num_gpus = data.get("num_gpus", 1)
-            num_cpus = data.get("num_cpus", 1)
-            memory_mb = data.get("memory_mb", 0)
+            num_gpus = int_fields["num_gpus"]
+            num_cpus = int_fields["num_cpus"]
+            memory_mb = int_fields["memory_mb"]
             workdir = data.get("workdir", config.env.working_dir or os.getcwd())
             resource = data.get("resource") or data.get("partition")
             user = data.get("user", "unknown")
             user = f"{user} (remote)"
             on_complete = data.get("on_complete")
-            timeout_sec = data.get("timeout_sec")
-            max_retries = data.get("max_retries", 0)
+            timeout_sec = int_fields["timeout_sec"]
+            max_retries = int_fields["max_retries"]
             priority = data.get("priority", "normal")
 
             dispatcher = Dispatcher(config)
