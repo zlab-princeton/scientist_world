@@ -86,3 +86,39 @@ def test_grader_verdict_seals(tmp_path, status):
     (env / "scoring" / "verification.json").write_text(
         json.dumps({"status": status}))
     assert _resumable(env) is False
+
+
+def test_validation_rounds_continue_turn_numbering(tmp_path, monkeypatch):
+    """Validation-retry rounds must number their turns after the main
+    session's, or their trajectory files overwrite turn_0001... ."""
+    from evaluation import runner, validate
+    from evaluation.loop import LoopResult
+
+    class _Gaps:
+        ok, phase, n_missing = False, "train", 1
+
+        def summary(self):
+            return "train: 1 cell(s) missing"
+
+        def format_for_prompt(self):
+            return "- exp / ours / acc"
+
+    class _Ok:
+        ok = True
+
+    results = iter([_Gaps(), _Gaps(), _Ok()])
+    monkeypatch.setattr(validate, "validate_train", lambda env_dir: next(results))
+    offsets = []
+
+    def fake_run_loop(*args, turn_offset=0, **kwargs):
+        offsets.append(turn_offset)
+        return LoopResult(turns=turn_offset + 3, last_action="done", reason="done")
+
+    monkeypatch.setattr(runner, "run_loop", fake_run_loop)
+    env = _env(tmp_path, {})
+    ok = runner._validate_with_retries(
+        env, None, None, "proj", extra_binds=None,
+        cfg={"nexus": {"gpu_budget_hours": 1.0}}, turn_offset=12,
+    )
+    assert ok is True
+    assert offsets == [12, 15]

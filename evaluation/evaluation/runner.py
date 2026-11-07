@@ -941,8 +941,10 @@ def _validate_with_retries(
                 max_turns=_TRAIN_VALIDATE_MAX_TURNS,
                 gpu_budget_hours=float(cfg["nexus"]["gpu_budget_hours"]),
                 extra_binds=extra_binds,
+                turn_offset=cumulative_turns,
             )
-            cumulative_turns += sub_result.turns
+            # ``turns`` is the last turn number, offset included.
+            cumulative_turns = sub_result.turns
         except TransientError as exc:
             log.warning(
                 "Train-phase validation retry %d crashed: %s — giving up", retry_n, exc,
