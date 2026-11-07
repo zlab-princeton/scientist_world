@@ -578,7 +578,9 @@ class Worker(ABC):
             return False
         self._api_key_index = next_index
         new_key = api_keys[self._api_key_index]
-        env_vars = self.config.get("env_vars", {})
+        # Copy: env_vars may be the module-level CONFIG_DEFAULTS dict or the
+        # caller's dict, shared with other workers.
+        env_vars = dict(self.config.get("env_vars", {}))
         env_vars["ANTHROPIC_AUTH_TOKEN"] = new_key
         self.config["env_vars"] = env_vars
         logger.warning("Rotated API key to index %d", self._api_key_index)

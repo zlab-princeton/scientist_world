@@ -30,6 +30,19 @@ def test_init_config_does_not_mutate_defaults():
     assert CONFIG_DEFAULTS["max_turns"] == 200
 
 
+def test_rotate_api_key_does_not_mutate_shared_env_vars():
+    caller_env = {"FOO": "bar"}
+    w = ClaudeCodeWorker("claude-code", "claude-opus-4-6",
+                         {"api_keys": ["k0", "k1"], "env_vars": caller_env})
+    assert w._try_rotate_api_key() is True
+    assert w.config["env_vars"]["ANTHROPIC_AUTH_TOKEN"] == "k1"
+    assert caller_env == {"FOO": "bar"}
+
+    w2 = ClaudeCodeWorker("claude-code", "claude-opus-4-6", {"api_keys": ["k0", "k1"]})
+    assert w2._try_rotate_api_key() is True
+    assert CONFIG_DEFAULTS["env_vars"] == {}
+
+
 # ── set_paper_and_workspace / set_resources ───────────────────────────────
 
 
