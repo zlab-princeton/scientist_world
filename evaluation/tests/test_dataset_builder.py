@@ -116,6 +116,14 @@ def test_strip_leaky_sections() -> None:
     assert extract.strip_leaky_sections("## Target numbers\nonly this\n") is None
 
 
+def test_strip_leaky_sections_ignores_comments_in_code_fences() -> None:
+    md = ("## Key Results\n\n```python\n# accuracy on the test split\nacc = 92.1\n```\n"
+          "~~~\n# loss\nloss = 0.31\n~~~\n\n## Method\n\n```\n# kept code\n```\n")
+    out = extract.strip_leaky_sections(md)
+    assert "92.1" not in out and "0.31" not in out
+    assert out.startswith("## Method") and "# kept code" in out
+
+
 def test_extract_inputs_and_manifest(corpus: Path) -> None:
     source = corpus / "envs" / PAPER / "source"
     inputs = extract.extract_inputs(source)

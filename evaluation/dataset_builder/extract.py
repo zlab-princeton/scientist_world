@@ -48,9 +48,15 @@ def strip_leaky_sections(md: str | None) -> str | None:
         if m:
             level = len(lines[i]) - len(lines[i].lstrip("#"))
             i += 1
+            fence = None   # a ``#`` line inside a code block is not a header
             while i < len(lines):
                 nxt = lines[i].lstrip()
-                if nxt.startswith("#"):
+                if fence is None and nxt.startswith(("```", "~~~")):
+                    fence = nxt[:3]
+                elif fence is not None:
+                    if nxt.startswith(fence):
+                        fence = None
+                elif nxt.startswith("#"):
                     nlevel = len(lines[i]) - len(lines[i].lstrip("#"))
                     if nlevel <= max(level, 1):
                         break
