@@ -63,6 +63,11 @@ def download_pdf(arxiv_id: str, dest: Path, max_retries: int = 5) -> str:
                 else:
                     print(f"    Download failed: {e}")
                     return "failed"
+            except OSError as e:
+                # URLError, ContentTooShortError and socket timeouts: report
+                # this paper as failed instead of ending the whole run.
+                print(f"    Download failed: {e}")
+                return "failed"
         return "failed"
     finally:
         tmp.unlink(missing_ok=True)
