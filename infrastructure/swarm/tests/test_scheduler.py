@@ -1110,3 +1110,37 @@ def test_scan_distinfo_packages_mounts_overlay_on_the_fallback_sif(monkeypatch, 
     assert len(commands) == 1
     assert commands[0][:2] == ["apptainer", "exec"]
     assert str(agent_sif) in commands[0]
+
+
+def test_fill_manifest_counts_each_workspace_job_once_across_runs(monkeypatch, tmp_path: Path):
+    from types import SimpleNamespace
+
+    from swarm import scheduler
+
+    papers_dir = tmp_path / "papers"
+    monkeypatch.setattr(scheduler, "PAPERS_DIR", papers_dir)
+    workspace = tmp_path / "ws"
+    jobs_dir = workspace / "jobs"
+
+    def add_job(run_id: str) -> None:
+        (jobs_dir / run_id).mkdir(parents=True)
+        (jobs_dir / run_id / "meta.json").write_text(json.dumps({
+            "run_id": run_id, "status": "completed", "num_cpus": 4,
+            "started_at": 1000.0, "completed_at": 4600.0,
+        }))
+
+    job = PaperJob(
+        arxiv_id="p1", paper=SimpleNamespace(arxiv_id="p1", title="T"),
+        workspace_path=str(workspace), gpu_budget=1.0,
+    )
+    wc = SimpleNamespace(scaffold="claude", model="m")
+
+    add_job("r1")
+    scheduler._fill_manifest(workspace / "manifest.json", job=job, worker_config=wc)
+    add_job("r2")  # second run submits one more job; r1 is still on disk
+    scheduler._fill_manifest(workspace / "manifest.json", job=job, worker_config=wc)
+
+    manifest = json.loads((workspace / "manifest.json").read_text())
+    assert [[j["run_id"] for j in a["gpu_jobs"]] for a in manifest["agents"]] == [["r1"], ["r2"]]
+    assert manifest["reproduction"]["total_gpu_jobs"] == 2
+    assert manifest["reproduction"]["total_cpu_hours_used"] == 8.0

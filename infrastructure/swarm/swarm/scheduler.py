@@ -5714,6 +5714,27 @@ def _fill_manifest(
         # Detect which workspace components exist
         has = lambda p: (workspace / p).exists()  # noqa: E731
 
+        # --- Load previous agent entries (if any) ---
+        # The manifest is deleted from the workspace before each run,
+        # but we keep a copy in the swarm paper directory.
+        prev_agents: list[dict] = []
+        swarm_manifest = PAPERS_DIR / job.paper.arxiv_id / "manifest.json"
+        if swarm_manifest.exists():
+            try:
+                prev = json.loads(swarm_manifest.read_text())
+                prev_agents = prev.get("agents", [])
+            except Exception:
+                pass
+
+        # jobs/ persists across runs, so skip jobs an earlier run already
+        # recorded; otherwise they are counted again in every later run.
+        prev_run_ids = {
+            j.get("run_id")
+            for a in prev_agents
+            for j in a.get("gpu_jobs", [])
+            if j.get("run_id")
+        }
+
         # --- Collect GPU job history from workspace ---
         gpu_jobs: list[dict] = []
         this_run_cpu_hours = 0.0
@@ -5724,6 +5745,8 @@ def _fill_manifest(
                 if meta_file.exists():
                     try:
                         jm = json.loads(meta_file.read_text())
+                        if jm.get("run_id") in prev_run_ids:
+                            continue
                         duration = None
                         if jm.get("started_at") and jm.get("completed_at"):
                             duration = round(jm["completed_at"] - jm["started_at"], 1)
@@ -5808,18 +5831,6 @@ def _fill_manifest(
                 if in_log:
                     progress_log += line + "\n"
             this_run["progress_log"] = progress_log.strip()
-
-        # --- Load previous agent entries (if any) ---
-        # The manifest is deleted from the workspace before each run,
-        # but we keep a copy in the swarm paper directory.
-        prev_agents: list[dict] = []
-        swarm_manifest = PAPERS_DIR / job.paper.arxiv_id / "manifest.json"
-        if swarm_manifest.exists():
-            try:
-                prev = json.loads(swarm_manifest.read_text())
-                prev_agents = prev.get("agents", [])
-            except Exception:
-                pass
 
         all_agents = prev_agents + [this_run]
 
