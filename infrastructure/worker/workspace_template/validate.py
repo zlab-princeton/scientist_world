@@ -1417,9 +1417,11 @@ def main():
                     print(f"    ✗ {e}")
                 ok = False
             else:
-                n_exp = len(scores_data)
-                n_methods = sum(len(m) for m in scores_data.values()
-                                if isinstance(m, dict))
+                # Same normalization as compare_scores: accepts the
+                # {"experiments": ...} wrapper and per-experiment "results".
+                scores_exps = _extract_scores_experiments(scores_data)
+                n_exp = len(scores_exps)
+                n_methods = sum(len(m) for m in scores_exps.values())
                 print(f"  {filename} — OK ({n_exp} experiments, {n_methods} methods)")
 
             if args.compare and not scores_errors and filename == "scores.json":
