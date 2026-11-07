@@ -1146,7 +1146,8 @@ def create_app(config: HiveConfig = None, start_health_thread: bool = True) -> F
 
             # Hide non-active jobs — only show RUNNING and PENDING.
             # Also remove stale tracking files so they don't accumulate.
-            _inactive = ("CANCELLED", "COMPLETED", "FAILED", "TIMEOUT", "OUT_OF_ME")
+            _inactive = ("CANCELLED", "COMPLETED", "FAILED", "TIMEOUT", "OUT_OF_ME",
+                         "NODE_FAIL", "BOOT_FAIL", "DEADLINE")
             active = []
             for r in result:
                 if any(r["state"].startswith(s) for s in _inactive):

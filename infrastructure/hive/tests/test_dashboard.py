@@ -1125,6 +1125,32 @@ class TestDispatchQueued:
         assert set(launch_calls) == {"dispatchpool05"}
 
 
+class TestApiSlurm:
+    def test_terminal_failure_states_are_hidden_and_untracked(self, app, tmp_hive_dir, tmp_path):
+        """NODE_FAIL / BOOT_FAIL / DEADLINE jobs are dead: hide them and drop tracking files."""
+        tracking_dir = tmp_path / "slurm_tracking"
+        tracking_dir.mkdir()
+        for jid in ("101", "102", "103", "104"):
+            (tracking_dir / jid).write_text("gpu-a")
+
+        sacct_out = "\n".join([
+            "101|NODE_FAIL|node1|00:10:00|60",
+            "102|BOOT_FAIL|None assigned|00:00:00|60",
+            "103|DEADLINE|node2|00:20:00|60",
+            "104|RUNNING|node3|00:05:00|60",
+        ]) + "\n"
+        sacct = MagicMock(returncode=0, stdout=sacct_out)
+
+        with patch("hive.config.SLURM_TRACKING_DIR", tracking_dir), \
+             patch("hive.dashboard.subprocess.run", return_value=sacct):
+            with app.test_client() as c:
+                resp = c.get("/api/slurm")
+
+        assert resp.status_code == 200
+        assert [j["id"] for j in resp.get_json()] == ["104"]
+        assert sorted(p.name for p in tracking_dir.iterdir()) == ["104"]
+
+
 class TestApiCancel:
     def test_running_job_not_cancelled_when_ray_unreachable(self, app, tmp_hive_dir, tmp_path):
         """Cancel must fail closed if Ray cannot be reached for a running job."""
