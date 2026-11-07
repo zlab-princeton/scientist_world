@@ -894,6 +894,22 @@ def test_sanitize_redacts_known_secret_shapes(secret: str) -> None:
     assert "REDACTED" in cleaned
 
 
+@pytest.mark.parametrize("text, secret", [
+    ("x_tp-" + "a" * 40, "tp-" + "a" * 40),
+    ("key0123456789abcdef0123456789abcdef.0123456789abcdef",
+     "0123456789abcdef0123456789abcdef.0123456789abcdef"),
+    ("0123456789abcdef0123456789abcdef.0123456789abcdefXYZ",
+     "0123456789abcdef0123456789abcdef.0123456789abcdef"),
+])
+def test_sanitize_redacts_what_the_pre_commit_hook_blocks(text: str, secret: str) -> None:
+    """The hook's credential patterns have no word-boundary anchors; the
+    in-Python redaction must catch the same strings, or the hook rejects
+    the publish commit instead."""
+    cleaned = git_publish._sanitize_text(f"prefix {text} suffix")
+    assert secret not in cleaned
+    assert "REDACTED" in cleaned
+
+
 def test_sanitize_redacts_basic_auth_url() -> None:
     text = 'remote "origin" https://user:hunter2@github.com/foo.git'
     out = git_publish._sanitize_text(text)

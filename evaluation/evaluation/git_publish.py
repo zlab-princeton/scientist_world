@@ -117,9 +117,11 @@ _REDACT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"sk-kimi-[A-Za-z0-9]{40,}"), "sk-kimi-REDACTED"),
     (re.compile(r"sk-cp-[A-Za-z0-9_\-]{40,}"), "sk-cp-REDACTED"),
     (re.compile(r"sk-proj-[A-Za-z0-9_\-]{40,}"), "sk-proj-REDACTED"),
-    (re.compile(r"\btp-[a-z0-9]{40,}"), "tp-REDACTED"),
+    # Anchored like the pre-commit hook's patterns, not with \b: "_" is a
+    # word character, so \b misses "x_tp-..." which the hook still rejects.
+    (re.compile(r"(?<![A-Za-z0-9])tp-[a-z0-9]{40,}"), "tp-REDACTED"),
     # Dotted key format: 32 hex chars + "." + 16 alphanumerics
-    (re.compile(r"\b[a-f0-9]{32}\.[A-Za-z0-9]{16}\b"), "<key>.REDACTED"),
+    (re.compile(r"[a-f0-9]{32}\.[A-Za-z0-9]{16}"), "<key>.REDACTED"),
     # Bearer / Authorization headers
     (re.compile(r"(?i)Bearer\s+[A-Za-z0-9_\.\-]{20,}"), "Bearer REDACTED"),
     # Basic-auth URL (https://user:token@host)
