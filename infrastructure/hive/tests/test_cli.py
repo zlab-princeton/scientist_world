@@ -109,3 +109,19 @@ def test_cmd_relaunch_rebuilds_state_before_restart(tmp_hive_dir, sample_config,
     sbatch_path = tmp_hive_dir / "sbatch" / "test-gpu.sbatch"
     assert sbatch_path.exists()
     assert "Auto-requeued test-gpu worker" in sbatch_path.read_text()
+
+
+def test_resolve_resources_full_applies_time_override(sample_config):
+    """--time must override walltime in --full / --test-only modes too."""
+    import hive.cli as cli
+
+    base = dict(resource=None, include_test=False, time="2:00:00")
+    full = cli._resolve_resources(
+        SimpleNamespace(full=True, test_only=False, **base), sample_config)
+    test_only = cli._resolve_resources(
+        SimpleNamespace(full=False, test_only=True, **base), sample_config)
+
+    assert [r.walltime for r in full] == ["2:00:00"]
+    assert [r.walltime for r in test_only] == ["2:00:00"]
+    # Config itself is not mutated.
+    assert [r.walltime for r in sample_config.slurm.resources] == ["0:59:59", "12:00:00"]

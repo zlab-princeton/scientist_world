@@ -461,6 +461,8 @@ def _resolve_resources(args, config: HiveConfig) -> list:
                 continue
             spec = copy.copy(p)
             spec.num_jobs = spec.max_jobs
+            if args.time:
+                spec.walltime = args.time
             resources.append(spec)
         if not resources:
             label = "test" if args.test_only else "non-test"
