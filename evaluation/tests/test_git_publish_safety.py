@@ -928,6 +928,16 @@ def test_flatten_scores_picks_first_n_metrics() -> None:
     assert all(isinstance(v, float) for v in values)
 
 
+def test_flatten_scores_accepts_flat_layouts() -> None:
+    wrapped = {"experiments": {"exp_a": {"results": {"sub_a": {"m1": 0.5}}}}}
+    flat = {"exp_a": {"sub_a": {"m1": 0.5}}}
+    flat_results = {"exp_a": {"results": {"sub_a": {"m1": 0.5}}}}
+    expected = [("exp_a / sub_a", "m1", 0.5)]
+    assert git_publish._flatten_scores(wrapped) == expected
+    assert git_publish._flatten_scores(flat) == expected
+    assert git_publish._flatten_scores(flat_results) == expected
+
+
 def test_flatten_scores_handles_empty() -> None:
     assert git_publish._flatten_scores({}) == []
     assert git_publish._flatten_scores({"experiments": {}}) == []

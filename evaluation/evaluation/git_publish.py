@@ -47,6 +47,8 @@ from typing import Iterator
 
 import yaml
 
+from evaluation.validate import _flatten_experiments, _flatten_results
+
 log = logging.getLogger(__name__)
 
 
@@ -652,14 +654,14 @@ def _flatten_scores(scores: dict, max_metrics_per_experiment: int = 5) -> list[t
     per (experiment, sub_experiment) pair. Full JSON is shipped alongside
     in a collapsible ``<details>`` block so nothing is lost.
     """
+    # Agents also write the flat layouts (no "experiments" / "results"
+    # wrapper); share the validator's flatteners so those rows show up.
     rows: list[tuple[str, str, float]] = []
-    experiments = (scores or {}).get("experiments") or {}
-    for exp_name, exp in experiments.items():
-        results = (exp or {}).get("results") or {}
-        for sub_name, sub in results.items():
+    for exp_name, exp in _flatten_experiments(scores).items():
+        for sub_name, sub in _flatten_results(exp).items():
             count = 0
             label = f"{exp_name} / {sub_name}" if sub_name != exp_name else exp_name
-            for metric, val in (sub or {}).items():
+            for metric, val in sub.items():
                 if not isinstance(val, (int, float)):
                     continue
                 rows.append((label, metric, float(val)))
