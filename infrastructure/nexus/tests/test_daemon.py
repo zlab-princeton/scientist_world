@@ -447,6 +447,25 @@ class TestJobLifecycle:
         assert daemon.client.get(f"/api/jobs/{run_id}").get_json()["status"] == "cancelled"
         assert Project.load("p1").gpus_in_use == 0
 
+    def test_continue_and_cancel_report_status_of_finished_job(self, daemon, workspace):
+        register(daemon, workspace)
+        run_id = submit(daemon).get_json()["run_id"]
+        daemon.bridge.poll.return_value = {
+            "status": "completed", "stdout": "", "stderr": "", "returncode": 0}
+        daemon.monitor._tick()
+        assert daemon.client.get(f"/api/jobs/{run_id}").get_json()["status"] == "completed"
+
+        resp = daemon.client.post(f"/api/jobs/{run_id}/continue")
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "completed"
+        assert "message" in resp.get_json()
+
+        resp = daemon.client.post(f"/api/jobs/{run_id}/cancel")
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "completed"
+        assert "message" in resp.get_json()
+        daemon.bridge.cancel.assert_not_called()
+
     def test_list_jobs_puts_active_first(self, daemon, workspace):
         register(daemon, workspace)
         first = submit(daemon).get_json()["run_id"]

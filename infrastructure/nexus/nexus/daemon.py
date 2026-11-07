@@ -532,7 +532,14 @@ def create_app(config: NexusConfig = None) -> Flask:
                 return jsonify({"error": f"Job '{run_id}' not found"}), 404
 
             monitor.continue_job(run_id)
-            return jsonify({"run_id": run_id, "status": "running"})
+            # continue_job is a no-op unless the job is awaiting a
+            # checkpoint decision, so report the status it actually has.
+            job = NexusJob.load(run_id) or job
+            result = {"run_id": run_id, "status": job.status}
+            if job.status != "running":
+                result["message"] = (
+                    f"Job is {job.status}, not awaiting a checkpoint decision")
+            return jsonify(result)
         except Exception as e:
             log.exception("Error continuing job")
             return jsonify({"error": str(e)}), 500
@@ -545,7 +552,13 @@ def create_app(config: NexusConfig = None) -> Flask:
                 return jsonify({"error": f"Job '{run_id}' not found"}), 404
 
             monitor.cancel_job(run_id)
-            return jsonify({"run_id": run_id, "status": "cancelled"})
+            # cancel_job is a no-op for jobs that already finished or are
+            # not tracked, so report the status the job actually has.
+            job = NexusJob.load(run_id) or job
+            result = {"run_id": run_id, "status": job.status}
+            if job.status != "cancelled":
+                result["message"] = f"Job is {job.status}, not cancelled"
+            return jsonify(result)
         except Exception as e:
             log.exception("Error cancelling job")
             return jsonify({"error": str(e)}), 500
