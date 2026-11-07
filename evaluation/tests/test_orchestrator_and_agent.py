@@ -217,6 +217,19 @@ def test_run_one_needs_a_configured_profile(eval_config) -> None:
 # ── action.yaml ──────────────────────────────────────────────────────────
 
 
+def test_protocol_prompt_does_not_offer_cpu_only_jobs(tmp_path: Path) -> None:
+    """parse_turn_action raises gpus: 0 to 1, so the agent prompt must not
+    promise that gpus: 0 runs a CPU-only job."""
+    from evaluation.loop import _render
+
+    (tmp_path / "action.yaml").write_text("action: submit\ngpus: 0\n")
+    assert parse_turn_action(tmp_path).gpus == 1
+
+    text = _render("protocol")
+    assert "CPU-only" not in text
+    assert "CPU test node" not in text
+
+
 def test_parse_turn_action(tmp_path: Path) -> None:
     assert parse_turn_action(tmp_path) is None
     action = tmp_path / "action.yaml"

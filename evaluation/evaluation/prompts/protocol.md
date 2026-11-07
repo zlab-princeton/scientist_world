@@ -16,7 +16,7 @@ notes: "what this job does"
 The pipeline will submit the job, wait for it to finish, and invoke
 you again with the logs.
 
-- `gpus`: number of GPUs (set to `0` for a CPU-only job).
+- `gpus`: number of GPUs (at least 1; every job gets a GPU node).
 - `test`: set to `true` for quick validation jobs on test nodes
   (max 1 hour wall-clock), `false` for normal jobs.
   - Use `test: true` to smoke-test your setup (does the container
@@ -24,8 +24,7 @@ you again with the logs.
     long job.
   - Test nodes have a **1-hour time limit** — only use them for quick
     checks, never full training runs.
-  - Works for both GPU and CPU jobs: `gpus: 1, test: true` → GPU test
-    node; `gpus: 0, test: true` → CPU test node.
+  - `gpus: 1, test: true` → GPU test node.
 
 - Anything beyond a few minutes of compute must use `action: submit`.
   Inline bash counts against your turn's 4-hour wall-clock cap and
