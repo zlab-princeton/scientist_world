@@ -70,9 +70,11 @@ def _iter_events(path: Path) -> Iterable[dict]:
                 if not line:
                     continue
                 try:
-                    yield json.loads(line)
+                    ev = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                if isinstance(ev, dict):   # skip bare scalars/lists some streams emit
+                    yield ev
     except OSError:
         return
 

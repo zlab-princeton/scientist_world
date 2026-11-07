@@ -235,6 +235,17 @@ def test_usage_gemini(tmp_path: Path) -> None:
             out["output_tokens"], out["turn_count"]) == (9, 4, 2, 1)
 
 
+def test_usage_skips_non_object_json_lines(tmp_path: Path) -> None:
+    traj = tmp_path / "trajectory"
+    traj.mkdir()
+    (traj / "turn_0001_raw.jsonl").write_text(
+        '"progress"\n42\n[1, 2]\nnull\n'
+        + json.dumps({"type": "turn.completed", "usage": {
+            "input_tokens": 5, "output_tokens": 3}}) + "\n")
+    out = usage.extract_usage(tmp_path, "codex")
+    assert (out["input_tokens_new"], out["output_tokens"], out["turn_count"]) == (5, 3, 1)
+
+
 @pytest.mark.parametrize("scaffold", ["kimi", "claude-tmux", "something-else"])
 def test_usage_is_zero_for_scaffolds_without_a_handler(tmp_path: Path, scaffold) -> None:
     _turn(tmp_path, 1, {"type": "result", "usage": {"input_tokens": 10}})
