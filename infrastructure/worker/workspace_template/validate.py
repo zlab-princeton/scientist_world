@@ -462,8 +462,8 @@ def check_imports_not_gitignored() -> list[str]:
     expected path and are validated against the tracked fileset.
     """
     errors: list[str] = []
-    # expected_path -> list of (source_file, lineno) tuples
-    import_map: dict[Path, list[tuple[Path, int]]] = {}
+    # expected_path -> list of (source_file, lineno, imported_names) tuples
+    import_map: dict[Path, list[tuple[Path, int, tuple[str, ...]]]] = {}
 
     for dirname in ("eval", "method", "baseline"):
         dirpath = WORKSPACE_DIR / dirname
@@ -483,13 +483,14 @@ def check_imports_not_gitignored() -> list[str]:
                     for alias in node.names:
                         base = _expected_import_base(alias.name, None, 0)
                         if base is not None:
-                            import_map.setdefault(base, []).append((pyfile, node.lineno))
+                            import_map.setdefault(base, []).append((pyfile, node.lineno, ()))
                 elif isinstance(node, ast.ImportFrom):
                     if node.module is None and node.level == 0:
                         continue
                     base = _expected_import_base(node.module or "", pyfile, node.level)
                     if base is not None:
-                        import_map.setdefault(base, []).append((pyfile, node.lineno))
+                        names = tuple(alias.name for alias in node.names)
+                        import_map.setdefault(base, []).append((pyfile, node.lineno, names))
 
     if not import_map:
         return errors
@@ -544,7 +545,16 @@ def check_imports_not_gitignored() -> list[str]:
             search = search.parent
         if _found_build:
             continue
-        for source_file, lineno in callsites:
+        for source_file, lineno, names in callsites:
+            # "from pkg import mod" also works when pkg is a namespace
+            # package (no __init__.py): accept it if every imported name is
+            # a tracked submodule.
+            if names and all(
+                f"{rel_base}/{name}.py" in tracked
+                or f"{rel_base}/{name}/__init__.py" in tracked
+                for name in names
+            ):
+                continue
             rel_source = source_file.relative_to(WORKSPACE_DIR)
             on_disk = (
                 (WORKSPACE_DIR / py_rel).is_file()
