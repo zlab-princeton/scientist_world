@@ -130,6 +130,15 @@ def test_build_command_resume_with_session(configured_worker):
 # ── _build_command (with container) ───────────────────────────────────────
 
 
+def test_to_container_path_only_maps_paths_inside_workspace(configured_worker):
+    configured_worker.config["container_sif"] = "/path/to/reproducer.sif"
+    ws = configured_worker._workspace_path
+    assert configured_worker._to_container_path(ws + "/paper/p.md") == "/home/user/paper/p.md"
+    # A sibling whose name merely starts with the workspace name is outside it.
+    assert configured_worker._to_container_path(ws + "_paper.md") == ws + "_paper.md"
+    assert configured_worker._to_container_path(ws + "2/p.md") == ws + "2/p.md"
+
+
 def test_build_command_with_container(configured_worker):
     configured_worker.config["container_sif"] = "/path/to/reproducer.sif"
     cmd = configured_worker._build_command()

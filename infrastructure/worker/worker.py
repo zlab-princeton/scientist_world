@@ -363,7 +363,9 @@ class Worker(ABC):
         """Translate a workspace-relative host path to its container path."""
         if not self.config.get("container_sif") or not self._workspace_path:
             return host_path
-        if host_path.startswith(self._workspace_path):
+        ws = self._workspace_path.rstrip(os.sep)
+        # Compare whole path components: "/ws/p1" must not match "/ws/p10/...".
+        if host_path == ws or host_path.startswith(ws + os.sep):
             rel = os.path.relpath(host_path, self._workspace_path)
             return os.path.join(CONTAINER_WORKSPACE, rel)
         return host_path
