@@ -1356,7 +1356,8 @@ class Scheduler:
             if job.arxiv_id in queued_ids or job.arxiv_id in active_ids:
                 continue
             if job.status == "cancelled":
-                self._write_cancelled_recovery_meta(job)
+                if self._write_cancelled_recovery_meta(job):
+                    active_marked += 1
                 continue
             if self._write_job_recovery_meta(job, original_status="active"):
                 active_marked += 1

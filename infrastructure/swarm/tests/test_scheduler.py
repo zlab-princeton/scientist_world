@@ -960,6 +960,23 @@ def test_get_papers_lists_finished_paused_and_unsuccessful_papers_from_disk(monk
     }
 
 
+def test_prepare_all_for_restart_counts_cancelled_finalizing_papers(monkeypatch, tmp_path: Path):
+    papers_dir = tmp_path / "papers"
+    monkeypatch.setattr("swarm.scheduler.PAPERS_DIR", papers_dir)
+
+    scheduler = Scheduler.__new__(Scheduler)
+    scheduler._lock = threading.Lock()
+    scheduler.queue = deque()
+    scheduler.active = {}
+    scheduler.completed = {}
+    job = PaperJob(arxiv_id="p1", paper=None, workspace_path="", gpu_budget=1.0, status="cancelled")
+    scheduler._finalizing = {"p1": job}
+
+    assert scheduler.prepare_all_for_restart() == {"queued": 0, "active": 1}
+    meta = json.loads((papers_dir / "p1" / "meta.json").read_text())
+    assert meta["recovery_action"] == "finalize_cancelled"
+
+
 def test_recover_paper_requires_a_recorded_recovery_action(monkeypatch, tmp_path: Path):
     import pytest
 
