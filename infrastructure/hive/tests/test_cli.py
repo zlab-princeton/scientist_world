@@ -109,3 +109,28 @@ def test_cmd_relaunch_rebuilds_state_before_restart(tmp_hive_dir, sample_config,
     sbatch_path = tmp_hive_dir / "sbatch" / "test-gpu.sbatch"
     assert sbatch_path.exists()
     assert "Auto-requeued test-gpu worker" in sbatch_path.read_text()
+
+
+def test_cmd_jobs_status_waiting_keeps_other_requested_statuses(capsys):
+    """`--status waiting,running` must list running jobs as well as waiting ones."""
+    import hive.cli as cli
+    from hive.dispatcher import JobRecord
+
+    records = [
+        JobRecord(job_id="waitjob01", command="big", num_gpus=8, status="queued", submitted_at=1.0),
+        JobRecord(job_id="queuejob1", command="small", num_gpus=1, status="queued", submitted_at=2.0),
+        JobRecord(job_id="runjob001", command="run", num_gpus=1, status="running", submitted_at=3.0),
+    ]
+
+    with patch("hive.cli._get_remote_url", return_value=None), \
+         patch("hive.cli.JobRecord.load_all", return_value=records), \
+         patch("hive.cli.ray"), \
+         patch("hive.cli._ray_head_address", return_value="10.0.0.1:6379"), \
+         patch("hive.cli._get_max_gpus_per_node", return_value=4):
+        rc = cli.cmd_jobs(SimpleNamespace(status="waiting,running"))
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "waitjob01" in out
+    assert "runjob001" in out
+    assert "queuejob1" not in out

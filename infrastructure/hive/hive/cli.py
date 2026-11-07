@@ -1024,9 +1024,15 @@ def cmd_jobs(args):
     # Sort by submission time (newest first)
     records.sort(key=lambda r: r.submitted_at, reverse=True)
 
-    # Apply display filter for "waiting" if needed
-    if filter_statuses and "waiting" in filter_statuses and "queued" not in set(args.status.split(",")):
-        records = [r for r in records if _display_status(r, max_node_gpus) == "waiting"]
+    # Apply display filter for "waiting" if needed: drop plain-queued jobs,
+    # but keep any other statuses that were requested alongside "waiting".
+    requested_statuses = set(args.status.split(",")) if args.status else set()
+    if "waiting" in requested_statuses and "queued" not in requested_statuses:
+        records = [
+            r for r in records
+            if r.status in requested_statuses
+            or _display_status(r, max_node_gpus) == "waiting"
+        ]
 
     # Show USER column only when multiple distinct users exist
     users = {r.user for r in records if r.user}
