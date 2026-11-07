@@ -5274,7 +5274,14 @@ def _validate_container_def_portable(
         )
 
     if from_ref:
-        ref_info = _parse_docker_image_ref(from_ref)
+        # Registry:/Namespace: headers change which image is pulled, so
+        # check the same canonical ref the build would resolve.
+        effective_ref = from_ref
+        if parsed.get("registry") or parsed.get("namespace"):
+            effective_ref = _canonical_docker_ref(
+                from_ref, parsed.get("registry"), parsed.get("namespace"),
+            ) or from_ref
+        ref_info = _parse_docker_image_ref(effective_ref)
         if ref_info is None or ref_info.get("domain") != "docker.io":
             domain_seen = ref_info.get("domain") if ref_info else "(unparseable)"
             return False, (

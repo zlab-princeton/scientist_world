@@ -97,6 +97,19 @@ def test_extract_container_source_uri_honors_registry_namespace(tmp_path: Path):
     )
 
 
+def test_validate_container_def_portable_honors_registry_header(tmp_path: Path):
+    from swarm.scheduler import _validate_container_def_portable
+
+    container_def = tmp_path / "container.def"
+    container_def.write_text("Bootstrap: docker\nRegistry: quay.io\nFrom: python:3.10\n")
+    portable, err = _validate_container_def_portable(container_def)
+    assert portable is False
+    assert "non-portable container base" in err and "quay.io" in err
+
+    container_def.write_text("Bootstrap: docker\nNamespace: nvidia\nFrom: cuda:12.1.0-runtime-ubuntu22.04\n")
+    assert _validate_container_def_portable(container_def) == (True, None)
+
+
 def test_extract_container_source_uri_skips_ambiguous_registry_merge(tmp_path: Path):
     # When the merge is ambiguous (slashed From + Registry header), we
     # would rather skip prevalidation than validate the wrong image.
