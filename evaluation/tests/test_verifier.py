@@ -151,3 +151,57 @@ class TestVerifierPrompt:
         # Both terminal statuses must be spelled out for the grader.
         for status in TERMINAL_STATUSES:
             assert status in text
+
+
+class TestGraderTurns:
+    def test_grader_turns_exclude_the_agent_trajectory(self, eval_config,
+                                                       monkeypatch):
+        """loop.run returns the absolute turn number (turn_offset + k);
+        the verifier must record only the k turns the grader used."""
+        from evaluation import cache, container, loop, nexus
+
+        data_dir = eval_config(
+            profiles={"grader": {"scaffold": "codex", "model": "g"}},
+            verifier={"grader_profile": "grader", "max_turns": 12},
+            nexus={"url": "http://nexus.invalid", "max_gpus": 1},
+        )
+        env = data_dir / "envs" / "2501.00001" / "m-improve-eval"
+        (env / "trajectory").mkdir(parents=True)
+        # The agent already used 40 turns.
+        (env / "trajectory" / "turn_40.json").write_text("{}")
+        _git(env, "init", "-b", "work")
+        _git(env, "add", "-A")
+        _git(env, "commit", "-m", "agent run")
+
+        class _Nexus:
+            def __init__(self, url):
+                pass
+
+            def delete_project(self, project_id):
+                pass
+
+            def create_project(self, **kwargs):
+                pass
+
+        seen = {}
+
+        def fake_run(env_dir, profile, nx, project_id, prompt, *,
+                     max_turns, turn_offset, **kwargs):
+            seen["turn_offset"] = turn_offset
+            return loop.LoopResult(turns=turn_offset + 3,
+                                   last_action="done", reason="done")
+
+        monkeypatch.setattr(cache, "apply_to_workspace", lambda *a, **k: [])
+        monkeypatch.setattr(container, "ensure_container",
+                            lambda *a, **k: Path("/x.sif"))
+        monkeypatch.setattr(container, "ensure_overlay",
+                            lambda *a, **k: None)
+        monkeypatch.setattr(nexus, "Nexus", _Nexus)
+        monkeypatch.setattr(loop, "run", fake_run)
+        monkeypatch.setattr("time.sleep", lambda s: None)
+
+        ver = verifier.verify_run("2501.00001", "m", "improve", publish=False)
+
+        assert seen["turn_offset"] == 40
+        assert ver["grader_turns"] == 3
+        assert "after 3 turn(s)" in ver["progress"]

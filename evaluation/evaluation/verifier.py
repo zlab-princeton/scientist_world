@@ -536,7 +536,10 @@ def verify_run(
                     extra_binds=extra_binds,
                     turn_offset=turn_offset,
                 )
-                loop_reason, loop_turns = result.reason, result.turns
+                # loop.run reports the absolute turn number; record only
+                # the turns this grader session used.
+                loop_reason = result.reason
+                loop_turns = result.turns - turn_offset
                 break
             except Exception as exc:  # noqa: BLE001 — relaunch or mark
                 loop_reason = (f"grader session error (attempt "
