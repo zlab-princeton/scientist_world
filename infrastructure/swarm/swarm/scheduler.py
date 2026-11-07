@@ -2111,6 +2111,11 @@ class Scheduler:
             topics=meta.get("topics"),
             last_container_hash=meta.get("last_container_hash"),
             last_setup_hash=meta.get("last_setup_hash"),
+            last_env_failure_container_hash=meta.get("last_env_failure_container_hash"),
+            last_env_failure_setup_hash=meta.get("last_env_failure_setup_hash"),
+            last_env_failure_signature=meta.get("last_env_failure_signature"),
+            last_env_failure_class=meta.get("last_env_failure_class"),
+            revert_attempts=meta.get("revert_attempts", 0),
         )
 
         if self.config.github_org and not skip_github:

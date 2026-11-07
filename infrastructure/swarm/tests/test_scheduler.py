@@ -1004,6 +1004,45 @@ def test_recover_paper_dispatches_on_recovery_action(monkeypatch, tmp_path: Path
     assert "a1" not in scheduler.completed
 
 
+def test_recover_paper_iterate_keeps_revert_and_env_failure_state(monkeypatch, tmp_path: Path):
+    from types import SimpleNamespace
+
+    papers_dir = tmp_path / "papers"
+    (papers_dir / "a1").mkdir(parents=True)
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    (papers_dir / "a1" / "meta.json").write_text(json.dumps({
+        "arxiv_id": "a1", "status": "paused", "recovery_action": "iterate",
+        "workspace_path": str(workspace), "iteration": 3,
+        "revert_attempts": 2,
+        "last_env_failure_container_hash": "c1",
+        "last_env_failure_setup_hash": "s1",
+        "last_env_failure_signature": "container image not found",
+        "last_env_failure_class": "invalid_spec",
+    }))
+    monkeypatch.setattr("swarm.scheduler.PAPERS_DIR", papers_dir)
+    monkeypatch.setattr("swarm.scheduler.resolve_paper", lambda arxiv_id, data_dir: object())
+
+    scheduler = Scheduler.__new__(Scheduler)
+    scheduler._lock = threading.Lock()
+    scheduler.queue = deque()
+    scheduler.active = {}
+    scheduler.completed = {}
+    scheduler.config = SimpleNamespace(
+        scout_data_dir=tmp_path, github_org=None, workflows={},
+        nexus=SimpleNamespace(gpu_budget_hours=1.0),
+    )
+    scheduler._save_paper_meta = lambda job: None
+
+    job = scheduler.recover_paper("a1", dispatch=False, skip_github=True)
+
+    assert job.revert_attempts == 2
+    assert job.last_env_failure_container_hash == "c1"
+    assert job.last_env_failure_setup_hash == "s1"
+    assert job.last_env_failure_signature == "container image not found"
+    assert job.last_env_failure_class == "invalid_spec"
+
+
 # ── Git and GitHub helpers ────────────────────────────────────────────
 
 
