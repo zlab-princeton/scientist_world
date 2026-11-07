@@ -732,6 +732,13 @@ def rebuild_if_changed(
                 overlay_img.unlink()
             hashes["setup_sh"] = current_setup_hash
             did_rebuild = True
+    elif hashes.get("setup_sh") is not None:
+        # setup.sh was deleted: the overlay it built must not stay in use.
+        log.info("setup.sh removed — dropping overlay.img")
+        if overlay_img.exists():
+            overlay_img.unlink()
+        hashes["setup_sh"] = None
+        did_rebuild = True
 
     overlay_path = ensure_overlay(
         env_dir, container_sif,
