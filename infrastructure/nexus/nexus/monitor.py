@@ -583,9 +583,11 @@ class JobMonitor:
                 workspace=project.workspace_dir,
                 jobs_dir=jobs_dir,
             )
-        except KeyError as exc:
-            log.warning("Wake command template error for project %s: "
-                        "unknown variable %s", project.project_id, exc)
+        except (KeyError, IndexError, ValueError, AttributeError) as exc:
+            # A malformed template must not escape: _handle_completion would
+            # then never stop tracking the job.
+            log.warning("Wake command template error for project %s: %r",
+                        project.project_id, exc)
             return
 
         try:

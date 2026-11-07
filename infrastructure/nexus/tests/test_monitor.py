@@ -486,6 +486,35 @@ class TestMonitorWake:
             monitor._wake_agent(project, job, "completed")
         run.assert_not_called()
 
+    @pytest.mark.parametrize("template", ["notify {}", "notify {0}", "echo {", "notify {run_id.x}"])
+    def test_malformed_template_is_ignored(self, monitor, template):
+        project = Project(project_id="p1", wake_command=template)
+        job = NexusJob(run_id="j1", project_id="p1")
+        with patch("nexus.monitor.subprocess.run") as run:
+            monitor._wake_agent(project, job, "completed")
+        run.assert_not_called()
+
+    def test_malformed_template_does_not_block_completion(
+        self, monitor, mock_bridge, tmp_nexus_dir,
+    ):
+        project = Project(project_id="p1", max_gpus=4, gpus_in_use=1,
+                          workspace_dir=str(tmp_nexus_dir / "ws"),
+                          wake_command="echo {")
+        project.save()
+        job = NexusJob(run_id="j1", project_id="p1", hive_job_id="hive1",
+                       status="running", num_gpus=1, started_at=time.time())
+        job.save()
+        monitor.add_job(job, project)
+
+        mock_bridge.poll.return_value = {
+            "status": "completed", "stdout": "", "stderr": "", "returncode": 0,
+        }
+        with patch("nexus.monitor.subprocess.run"):
+            monitor._tick()
+
+        assert NexusJob.load("j1").status == "completed"
+        assert "j1" not in monitor.tracked_jobs()
+
 
 class TestMonitorStartStop:
     """Thread lifecycle and recovery of in-flight jobs on start.
