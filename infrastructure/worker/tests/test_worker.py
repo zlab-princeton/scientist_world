@@ -338,6 +338,40 @@ def test_submit_action_keeps_worker_in_working_state(configured_worker):
     assert configured_worker.get_last_action().action == "submit"
 
 
+def test_startup_broken_pipe_on_last_attempt_sets_error(configured_worker, monkeypatch):
+    import io
+    import subprocess
+
+    class _ClosedStdin:
+        def write(self, data):
+            raise BrokenPipeError
+
+        def close(self):
+            pass
+
+    class FakePopen:
+        calls = 0
+
+        def __init__(self, *args, **kwargs):
+            FakePopen.calls += 1
+            self.stdin = _ClosedStdin()
+            self.stdout = io.StringIO("")
+            self.stderr = io.StringIO("FATAL: container image not found")
+            self.returncode = 255
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+    monkeypatch.setattr(subprocess, "Popen", FakePopen)
+    configured_worker.config["api_retries"] = 0
+
+    configured_worker.chat("hello")
+
+    assert configured_worker.get_status() == "error"
+    assert "CLI crashed on startup" in configured_worker.get_error()
+    assert FakePopen.calls == 1
+
+
 def test_save_trajectory(configured_worker, tmp_path):
     logs_dir = tmp_path / "logs"
     configured_worker.save_trajectory(str(logs_dir))

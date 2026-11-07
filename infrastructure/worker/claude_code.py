@@ -274,6 +274,7 @@ class ClaudeCodeWorker(Worker):
                         if self._interruptible_sleep(delay):
                             break
                         continue
+                    self._status = "error"
                     self._error_message = f"CLI crashed on startup: {stderr[:300]}"
                     # Fall through to break — exhausted retries
                     returncode = proc.returncode or -1
