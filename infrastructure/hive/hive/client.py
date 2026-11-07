@@ -44,8 +44,19 @@ class Client:
             f"{self.url}{path}", data=body,
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode())
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            # The dashboard reports errors as {"error": ...} with a 4xx/5xx
+            # status; return that body so callers can raise its message.
+            try:
+                body = json.loads(e.read().decode())
+            except Exception:
+                body = None
+            if isinstance(body, dict) and "error" in body:
+                return body
+            raise RuntimeError(f"HTTP {e.code}: {e.reason}") from e
 
     def submit(self, command: str, num_gpus: int = 1, num_cpus: int = 1,
                memory_mb: int = 0, workdir: str = None, resource: str = None,

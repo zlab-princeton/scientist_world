@@ -1752,6 +1752,24 @@ class TestRetry:
         assert result["returncode"] == -15
         assert client.logs.call_count == 2
 
+    def test_client_submit_raises_dashboard_error_message(self, monkeypatch):
+        """client.submit() should surface the dashboard's JSON error on HTTP 4xx/5xx."""
+        import io
+        import urllib.error
+        from hive.client import Client
+
+        def fake_urlopen(req, timeout=None):
+            raise urllib.error.HTTPError(
+                req.full_url, 400, "BAD REQUEST", {},
+                io.BytesIO(b'{"error": "Missing \'command\' field"}'),
+            )
+
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        client = Client("http://localhost:9999")
+
+        with pytest.raises(RuntimeError, match="Missing 'command' field"):
+            client.submit("")
+
     def test_cancel_job_local_marks_job_cancelled(self, tmp_hive_dir):
         """CLI local cancel helper should kill the actor and persist cancelled."""
         from hive.cli import _cancel_job_local
