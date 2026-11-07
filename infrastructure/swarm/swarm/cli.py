@@ -283,6 +283,12 @@ def cmd_stop(args) -> int:
                 time.sleep(0.5)
             except ProcessLookupError:
                 break
+        else:
+            # Still alive: keep the PID file so `swarm start` does not
+            # launch a second daemon next to it.
+            print(f"Swarm (PID {pid}) is still shutting down; "
+                  f"run `swarm stop` again or check `swarm status`")
+            return 1
         DAEMON_PID_PATH.unlink(missing_ok=True)
         print("Swarm stopped")
     except ProcessLookupError:

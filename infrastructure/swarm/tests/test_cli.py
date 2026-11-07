@@ -147,6 +147,19 @@ def _start_foreground(tmp_path, monkeypatch, config, port=None):
     return cli.cmd_start(args), app
 
 
+def test_stop_keeps_pid_file_when_daemon_outlives_the_wait(tmp_path, monkeypatch, capsys):
+    pid_path = tmp_path / "daemon.pid"
+    pid_path.write_text("4242")
+    monkeypatch.setattr(cli, "DAEMON_PID_PATH", pid_path)
+    monkeypatch.setattr(cli, "_read_pid", lambda: 4242)
+    monkeypatch.setattr(cli.os, "kill", lambda pid, sig: None)  # never exits
+    monkeypatch.setattr(cli.time, "sleep", lambda s: None)
+
+    assert cli.cmd_stop(argparse.Namespace()) == 1
+    assert pid_path.exists()
+    assert "Swarm stopped" not in capsys.readouterr().out
+
+
 def test_start_binds_dashboard_to_loopback_by_default(tmp_path, monkeypatch, capsys):
     rc, app = _start_foreground(tmp_path, monkeypatch, _valid_config(tmp_path))
 
