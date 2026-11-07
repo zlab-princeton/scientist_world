@@ -174,6 +174,19 @@ class TestProjectCommands:
         assert Project.load("p1").max_gpus == 6
         assert cli.main(["modify", "p1"]) == 1  # nothing to change
 
+    def test_extend_leaves_unlimited_budget_unlimited(self, api, workspace, capsys):
+        cli.main(register_args(workspace, "p1", "--gpu-budget", "0"))
+        project = Project.load("p1")
+        project.gpu_seconds_used = 20 * 3600
+        project.save()
+        capsys.readouterr()
+
+        rc = cli.main(["extend", "p1", "--gpu-hours", "10"])
+        assert not Project.load("p1").is_over_soft_budget()
+        assert Project.load("p1").soft_gpu_budget_hours == 0
+        assert rc == 1
+        assert "unlimited" in capsys.readouterr().out
+
     def test_deregister_deletes_project_and_jobs(self, api, workspace):
         cli.main(register_args(workspace))
         api.client.post("/api/projects/p1/jobs", json={"command": "echo hi"})

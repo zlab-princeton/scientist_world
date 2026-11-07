@@ -571,6 +571,11 @@ def cmd_extend(args):
     # Get current project to compute new budget
     project = _api_get(base_url, f"/api/projects/{args.project_id}")
     current_budget = project.get("soft_gpu_budget_hours", 0)
+    # 0 means unlimited; adding to it would turn it into a small finite
+    # budget that the project may already have used up.
+    if current_budget <= 0:
+        print(f"Project '{args.project_id}' has an unlimited GPU budget; nothing to extend.")
+        return 1
     new_budget = current_budget + args.gpu_hours
 
     _api_patch(base_url, f"/api/projects/{args.project_id}", {
