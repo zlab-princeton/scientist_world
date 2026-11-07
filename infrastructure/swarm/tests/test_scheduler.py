@@ -1110,3 +1110,19 @@ def test_scan_distinfo_packages_mounts_overlay_on_the_fallback_sif(monkeypatch, 
     assert len(commands) == 1
     assert commands[0][:2] == ["apptainer", "exec"]
     assert str(agent_sif) in commands[0]
+
+
+def test_parse_packages_from_setup_ignores_operators_inside_quotes():
+    from swarm.scheduler import _parse_packages_from_setup
+
+    text = (
+        "pip install \"torch>=2.0\" transformers==4.40.0\n"
+        "pip install 'numpy<2' scipy==1.13.0 > /dev/null\n"
+    )
+
+    assert _parse_packages_from_setup(text) == {
+        "torch": "",
+        "transformers": "4.40.0",
+        "numpy": "",
+        "scipy": "1.13.0",
+    }

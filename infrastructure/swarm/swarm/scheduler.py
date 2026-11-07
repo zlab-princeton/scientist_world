@@ -5968,10 +5968,14 @@ def _parse_packages_from_setup(text: str) -> dict[str, str]:
     def _emit_tokens(segment: str) -> None:
         # Stop at shell control operators — anything after them is a
         # different command (echo, &&, ||, etc.), not pip args.
+        # Search on a copy with quoted spans blanked out, so a version
+        # specifier like "torch>=2.0" is not taken for a redirect.
+        masked = _re.sub(r"'[^']*'|\"[^\"]*\"", lambda m: "_" * len(m.group(0)), segment)
         for stopper in ("&&", "||", ";", " | ", "|&", "`", "$(", "2>", "1>", ">>", ">"):
-            idx = segment.find(stopper)
+            idx = masked.find(stopper)
             if idx != -1:
                 segment = segment[:idx]
+                masked = masked[:idx]
         for raw in segment.split():
             # Strip matching quotes; backslash-escaped spaces fall apart
             # naturally via split(), we don't attempt to undo them.
