@@ -1472,8 +1472,6 @@ class Scheduler:
                 raise ValueError(f"Paper {arxiv_id} is already active")
             if any(j.arxiv_id == arxiv_id for j in self.queue):
                 raise ValueError(f"Paper {arxiv_id} is already in the queue")
-            # Remove from completed so it can be re-activated
-            self.completed.pop(arxiv_id, None)
 
         workspace = Path(self.config.workspace_base_dir) / arxiv_id
         if not workspace.is_dir():
@@ -1676,6 +1674,9 @@ class Scheduler:
         self._save_paper_meta(job)
 
         with self._lock:
+            # Remove from completed only once the job is built, so a failed
+            # continue keeps the paper's completed record.
+            self.completed.pop(arxiv_id, None)
             if queue_front:
                 self.queue.appendleft(job)
             else:

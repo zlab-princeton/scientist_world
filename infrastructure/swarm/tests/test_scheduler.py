@@ -980,6 +980,28 @@ def test_recover_paper_requires_a_recorded_recovery_action(monkeypatch, tmp_path
         scheduler.recover_paper("unknown")
 
 
+def test_continue_paper_keeps_completed_record_when_workspace_is_missing(monkeypatch, tmp_path: Path):
+    import pytest
+    from types import SimpleNamespace
+
+    monkeypatch.setattr("swarm.scheduler.resolve_paper", lambda arxiv_id, data_dir: object())
+
+    scheduler = Scheduler.__new__(Scheduler)
+    scheduler._lock = threading.Lock()
+    scheduler.queue = deque()
+    scheduler.active = {}
+    result = object()
+    scheduler.completed = {"a1": result}
+    scheduler.config = SimpleNamespace(
+        workspace_base_dir=str(tmp_path / "workspaces"), scout_data_dir=str(tmp_path),
+        github_org=None,
+    )
+
+    with pytest.raises(FileNotFoundError):
+        scheduler.continue_paper("a1", dispatch=False)
+    assert scheduler.completed == {"a1": result}
+
+
 def test_recover_paper_dispatches_on_recovery_action(monkeypatch, tmp_path: Path):
     papers_dir = tmp_path / "papers"
     (papers_dir / "a1").mkdir(parents=True)
