@@ -2446,8 +2446,12 @@ class _AsyncJobRunner:
                 event_message=event_message,
             )
 
-            if not retried:
-                # Run on_complete callback only on final resolution
+            # Run on_complete callback only on final resolution.  The
+            # return-to-queue paths above leave status "queued" with
+            # retried=False, so check for a terminal status explicitly.
+            if not retried and record.status in (
+                "completed", "failed", "cancelled", "timeout",
+            ):
                 if record.on_complete:
                     try:
                         env = os.environ.copy()

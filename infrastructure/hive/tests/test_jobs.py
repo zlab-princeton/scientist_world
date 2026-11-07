@@ -2513,6 +2513,39 @@ class TestRetry:
         assert loaded.runner_launched is False
         assert mock_rm_pg.call_count == 1
 
+    def test_async_runner_skips_on_complete_when_returning_to_queue(self, tmp_hive_dir):
+        """on_complete must not fire when the job is put back in the queue."""
+        from unittest.mock import MagicMock, patch as _patch
+
+        record = JobRecord(
+            job_id="queueback02", command="sleep 10", num_gpus=1,
+            num_cpus=1, memory_mb=0, status="queued",
+            submitted_at=time.time(), max_retries=0, attempt=0,
+            on_complete="echo done",
+        )
+        record.save()
+
+        mock_pg = MagicMock()
+        mock_pg.ready.return_value = "ready_future"
+
+        with _patch("hive.dispatcher.placement_group", return_value=mock_pg), \
+             _patch("hive.dispatcher.remove_placement_group"), \
+             _patch("hive.dispatcher.ray") as mock_ray, \
+             _patch("hive.dispatcher._targeted_preempt"), \
+             _patch("hive.dispatcher.subprocess.run") as mock_sub_run:
+
+            mock_ray.wait.side_effect = [([], []), ([], [])]
+
+            RawRunner = _AsyncJobRunner.__ray_actor_class__
+            RawRunner(
+                job_id="queueback02", command="sleep 10",
+                num_gpus=1, num_cpus=1, memory_mb=0,
+                workdir="/tmp", bundles=[{"CPU": 1, "GPU": 1}],
+            )
+
+        assert JobRecord.load("queueback02").status == "queued"
+        mock_sub_run.assert_not_called()
+
     def test_async_runner_long_job_records_node_id(self, tmp_hive_dir):
         """Jobs should record which node they ran on, even for longer runs."""
         from unittest.mock import MagicMock, patch as _patch
