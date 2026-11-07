@@ -1821,15 +1821,16 @@ def create_app(config: HiveConfig = None, start_health_thread: bool = True) -> F
             cpu_used: dict[str, int] = {}
             for r in records:
                 if r.num_gpus == 0 and (r.status == "running" or (r.status == "queued" and _has_actor(r.job_id, r))):
-                    for res_name in _parse_resource_names(r.resource):
+                    for res_name in _parse_resource_names(r.dispatch_resource or r.resource):
                         cpu_used[res_name] = cpu_used.get(res_name, 0) + 1
 
             log.debug("cpu dispatch: nodes=%s used=%s", cpu_node_counts, cpu_used)
             workdir = config.env.working_dir or os.getcwd()
             for r in cpu_candidates:
-                res_names = _parse_resource_names(r.resource)
+                # Like the GPU path, a job with no resource may run on any pool.
+                res_names = _parse_resource_names(r.resource) or frozenset(cpu_node_counts)
                 dispatch_res = None
-                for res_name in res_names:
+                for res_name in sorted(res_names):
                     available = cpu_node_counts.get(res_name, 0)
                     used = cpu_used.get(res_name, 0)
                     if available > used:

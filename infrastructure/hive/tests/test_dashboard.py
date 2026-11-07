@@ -406,6 +406,90 @@ class TestDispatchQueued:
         assert launch_calls
         assert set(launch_calls) == {"dispatchpending01"}
 
+    def test_cpu_job_without_resource_dispatches_to_cpu_node(self, tmp_hive_dir, tmp_path):
+        """A queued CPU-only job with no resource should fall back to any CPU pool."""
+        from hive.dashboard import create_app
+        from hive.config import HiveConfig, SlurmConfig, RayConfig, EnvConfig
+        from hive.dispatcher import JobRecord
+
+        config = HiveConfig(
+            slurm=SlurmConfig(default_walltime="1:00:00", resources=[]),
+            ray=RayConfig(head_port=6379),
+            env=EnvConfig(),
+        )
+
+        raylet = tmp_path / "session_latest" / "sockets" / "raylet"
+        raylet.parent.mkdir(parents=True, exist_ok=True)
+        raylet.write_text("")
+
+        cpu_job = JobRecord(
+            job_id="dispatchcpu01",
+            command="python prep.py",
+            num_gpus=0,
+            num_cpus=1,
+            memory_mb=0,
+            status="queued",
+            submitted_at=1.0,
+        )
+        records = [cpu_job]
+
+        captured = {}
+
+        class DummyThread:
+            def __init__(self, target=None, daemon=None):
+                captured["target"] = target
+
+            def start(self):
+                return None
+
+        load_active_calls = {"count": 0}
+
+        def fake_load_active():
+            load_active_calls["count"] += 1
+            if load_active_calls["count"] in (3, 5):
+                return records
+            return []
+
+        sleep_calls = {"count": 0}
+
+        def fake_sleep(_secs):
+            sleep_calls["count"] += 1
+            if sleep_calls["count"] >= 2:
+                raise RuntimeError("stop loop")
+
+        launch_calls = []
+
+        def fake_launch(record, workdir=None, dispatch_resource=None, **kwargs):
+            launch_calls.append((record.job_id, dispatch_resource))
+            return "launched", record
+
+        with patch("hive.dashboard.threading.Thread", DummyThread), \
+             patch("hive.dashboard.get_ray_tmpdir", return_value=str(tmp_path)), \
+             patch("hive.dashboard.Dispatcher") as mock_dispatcher:
+            mock_dispatcher.load_state.return_value = {
+                "ray_head_address": "10.0.0.1:6379",
+                "resources": [],
+            }
+            app = create_app(config)
+
+        target = captured["target"]
+        assert target is not None
+        app.config["TESTING"] = True
+
+        with patch("hive.dashboard.JobRecord.load_active", side_effect=fake_load_active), \
+             patch("hive.dashboard.get_ray_tmpdir", return_value=str(tmp_path)), \
+             patch("hive.dashboard._ray_cache", {"data": None, "ts": 0.0}), \
+             patch("hive.dashboard._safe_ray_query", return_value=_ray_data([HEAD, CPU1])), \
+             patch("hive.dashboard.launch_job_runner", side_effect=fake_launch), \
+             patch("hive.dashboard.ray") as mock_ray, \
+             patch("hive.dashboard.time.sleep", side_effect=fake_sleep):
+            mock_ray.util.list_named_actors.return_value = []
+            with pytest.raises(RuntimeError, match="stop loop"):
+                target()
+
+        assert launch_calls
+        assert launch_calls[0] == ("dispatchcpu01", "cpu-pool")
+
     def test_pending_launch_only_blocks_compatible_resource_pool(self, tmp_hive_dir, tmp_path):
         """A pending launch on one partition should not throttle a different partition."""
         from hive.dashboard import create_app
