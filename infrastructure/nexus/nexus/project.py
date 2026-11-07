@@ -233,6 +233,9 @@ class Project:
         """
         if self.budget_exhausted:
             return False, "soft GPU budget exhausted"
+        # A negative count would pass the quota check and lower gpus_in_use.
+        if not isinstance(num_gpus, int) or num_gpus < 0:
+            return False, f"invalid GPU count: {num_gpus!r}"
         if num_gpus > self.max_gpus:
             return False, f"requested {num_gpus} GPUs exceeds project limit of {self.max_gpus}"
         if self.gpus_in_use + num_gpus > self.max_gpus:

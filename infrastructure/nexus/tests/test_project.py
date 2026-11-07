@@ -159,6 +159,16 @@ class TestProjectQuotas:
         p.release_gpus(5)  # should clamp to 0
         assert p.gpus_in_use == 0
 
+    def test_check_and_acquire_rejects_negative_gpus(self, tmp_nexus_dir):
+        p = Project(project_id="ar03", max_gpus=4, gpus_in_use=2)
+        p.save()
+
+        ok, reason = p.check_and_acquire(-4)
+        assert not ok
+        assert "-4" in reason
+        assert p.gpus_in_use == 2
+        assert Project.load("ar03").gpus_in_use == 2
+
     def test_check_and_acquire_uses_state_on_disk(self, tmp_nexus_dir):
         """A stale in-memory copy cannot exceed the quota."""
         Project(project_id="ar02", max_gpus=2).save()
