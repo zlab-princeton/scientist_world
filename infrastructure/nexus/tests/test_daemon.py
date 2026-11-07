@@ -137,6 +137,25 @@ class TestProjects:
         resp = daemon.client.patch("/api/projects/p1", json={"allowed_resources": []})
         assert resp.status_code == 400
 
+    @pytest.mark.parametrize("body", [
+        {"max_gpus": "abc"},
+        {"soft_gpu_budget_hours": None},
+        {"default_job_timeout": [60]},
+    ])
+    def test_patch_rejects_invalid_field_values(self, daemon, workspace, body):
+        register(daemon, workspace)
+        before = Project.load("p1").to_dict()
+        resp = daemon.client.patch("/api/projects/p1", json=body)
+        assert resp.status_code == 400
+        assert "error" in resp.get_json()
+        assert Project.load("p1").to_dict() == before
+
+    def test_patch_rejects_malformed_json(self, daemon, workspace):
+        register(daemon, workspace)
+        resp = daemon.client.patch("/api/projects/p1", data="{not json",
+                                   content_type="application/json")
+        assert resp.status_code == 400
+
     def test_budget_reset_and_extension_clear_exhausted_flag(self, daemon, workspace):
         register(daemon, workspace, soft_gpu_budget_hours=1)
         project = Project.load("p1")

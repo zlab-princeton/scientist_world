@@ -266,40 +266,45 @@ def create_app(config: NexusConfig = None) -> Flask:
             if project is None:
                 return jsonify({"error": f"Project '{project_id}' not found"}), 404
 
-            data = request.get_json(force=True)
+            data = request.get_json(force=True, silent=True)
             if not data:
                 return jsonify({"error": "Request body is required"}), 400
+            if not isinstance(data, dict):
+                return jsonify({"error": "Request body must be a JSON object"}), 400
 
-            if "max_gpus" in data:
-                project.max_gpus = int(data["max_gpus"])
-            if "allowed_resources" in data:
-                resources = data["allowed_resources"]
-                if not isinstance(resources, list) or not resources:
-                    return jsonify({"error": "'allowed_resources' must be a non-empty list"}), 400
-                project.allowed_resources = resources
-            if "max_cpus" in data:
-                project.max_cpus = int(data["max_cpus"])
-            if "max_memory_mb" in data:
-                project.max_memory_mb = int(data["max_memory_mb"])
-            if "soft_gpu_budget_hours" in data:
-                project.soft_gpu_budget_hours = float(data["soft_gpu_budget_hours"])
-                # If budget was extended, clear budget_exhausted so new
-                # submissions are allowed again.
-                if not project.is_over_soft_budget():
-                    project.budget_exhausted = False
-            if "gpu_seconds_used" in data:
-                # Reset (or adjust) the accumulated GPU-time counter, for
-                # a caller that starts a new phase whose budget should
-                # not include what earlier phases used.
-                project.gpu_seconds_used = float(data["gpu_seconds_used"])
-                if not project.is_over_soft_budget():
-                    project.budget_exhausted = False
-            if "default_job_timeout" in data:
-                project.default_job_timeout = int(data["default_job_timeout"])
-            if "sif_path" in data:
-                project.sif_path = str(data["sif_path"])
-            if "overlay_path" in data:
-                project.overlay_path = str(data["overlay_path"])
+            try:
+                if "max_gpus" in data:
+                    project.max_gpus = int(data["max_gpus"])
+                if "allowed_resources" in data:
+                    resources = data["allowed_resources"]
+                    if not isinstance(resources, list) or not resources:
+                        return jsonify({"error": "'allowed_resources' must be a non-empty list"}), 400
+                    project.allowed_resources = resources
+                if "max_cpus" in data:
+                    project.max_cpus = int(data["max_cpus"])
+                if "max_memory_mb" in data:
+                    project.max_memory_mb = int(data["max_memory_mb"])
+                if "soft_gpu_budget_hours" in data:
+                    project.soft_gpu_budget_hours = float(data["soft_gpu_budget_hours"])
+                    # If budget was extended, clear budget_exhausted so new
+                    # submissions are allowed again.
+                    if not project.is_over_soft_budget():
+                        project.budget_exhausted = False
+                if "gpu_seconds_used" in data:
+                    # Reset (or adjust) the accumulated GPU-time counter, for
+                    # a caller that starts a new phase whose budget should
+                    # not include what earlier phases used.
+                    project.gpu_seconds_used = float(data["gpu_seconds_used"])
+                    if not project.is_over_soft_budget():
+                        project.budget_exhausted = False
+                if "default_job_timeout" in data:
+                    project.default_job_timeout = int(data["default_job_timeout"])
+                if "sif_path" in data:
+                    project.sif_path = str(data["sif_path"])
+                if "overlay_path" in data:
+                    project.overlay_path = str(data["overlay_path"])
+            except (TypeError, ValueError) as e:
+                return jsonify({"error": f"Invalid field value: {e}"}), 400
 
             project.save()
             result = project.to_dict()
