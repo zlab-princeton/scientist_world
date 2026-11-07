@@ -1110,3 +1110,19 @@ def test_scan_distinfo_packages_mounts_overlay_on_the_fallback_sif(monkeypatch, 
     assert len(commands) == 1
     assert commands[0][:2] == ["apptainer", "exec"]
     assert str(agent_sif) in commands[0]
+
+
+def test_parse_packages_from_setup_skips_pip_option_values():
+    from swarm.scheduler import _parse_packages_from_setup
+
+    text = (
+        "pip install -r requirements.txt numpy==1.26.4\n"
+        "pip install --constraint constraints.txt --trusted-host pypi.org scipy\n"
+        "pip install --target vendor -c pins.txt pandas==2.2.0\n"
+    )
+
+    assert _parse_packages_from_setup(text) == {
+        "numpy": "1.26.4",
+        "scipy": "",
+        "pandas": "2.2.0",
+    }

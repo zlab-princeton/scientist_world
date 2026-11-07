@@ -5930,6 +5930,14 @@ _PIP_KEYWORDS = frozenset({
     "--target", "-t", "--root", "--prefix", "--src", "--compile",
     "--no-compile", "--no-warn-script-location",
 })
+# Options whose next token is their value (a file, path, URL or host),
+# never a package to install.
+_PIP_VALUE_OPTIONS = frozenset({
+    "-r", "--requirement", "-c", "--constraint", "-e", "--editable",
+    "-t", "--target", "--root", "--prefix", "--src",
+    "-i", "--index-url", "--extra-index-url", "-f", "--find-links",
+    "--trusted-host", "--no-binary", "--only-binary",
+})
 
 
 def _parse_packages_from_setup(text: str) -> dict[str, str]:
@@ -5972,10 +5980,17 @@ def _parse_packages_from_setup(text: str) -> dict[str, str]:
             idx = segment.find(stopper)
             if idx != -1:
                 segment = segment[:idx]
+        skip_value = False
         for raw in segment.split():
             # Strip matching quotes; backslash-escaped spaces fall apart
             # naturally via split(), we don't attempt to undo them.
             token = raw.strip("'\"")
+            if skip_value:
+                skip_value = False
+                continue
+            if token in _PIP_VALUE_OPTIONS:
+                skip_value = True
+                continue
             if not token or token.startswith("-"):
                 continue
             if token in _PIP_KEYWORDS:
