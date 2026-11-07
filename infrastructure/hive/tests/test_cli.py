@@ -109,3 +109,24 @@ def test_cmd_relaunch_rebuilds_state_before_restart(tmp_hive_dir, sample_config,
     sbatch_path = tmp_hive_dir / "sbatch" / "test-gpu.sbatch"
     assert sbatch_path.exists()
     assert "Auto-requeued test-gpu worker" in sbatch_path.read_text()
+
+
+def test_cmd_clear_default_keeps_preempted_jobs(tmp_hive_dir, monkeypatch):
+    """Default `hive clear` must not delete preempted jobs still pending requeue."""
+    import json as _json
+
+    import hive.cli as cli
+
+    monkeypatch.setattr(cli, "HIVE_DIR", tmp_hive_dir)
+    jobs_dir = tmp_hive_dir / "jobs"
+    for job_id, status in [("done", "completed"), ("pre", "preempted"),
+                           ("run", "running"), ("q", "queued")]:
+        (jobs_dir / job_id).mkdir()
+        (jobs_dir / job_id / "meta.json").write_text(
+            _json.dumps({"job_id": job_id, "status": status}))
+
+    rc = cli.cmd_clear(SimpleNamespace(all=False, keep_jobs=False))
+
+    assert rc == 0
+    remaining = sorted(p.name for p in jobs_dir.iterdir())
+    assert remaining == ["pre", "q", "run"]

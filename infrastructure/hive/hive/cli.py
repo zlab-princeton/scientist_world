@@ -1541,7 +1541,8 @@ def cmd_clear(args):
             JOBS_DIR.mkdir(parents=True, exist_ok=True)
             cleared.append(f"{count} jobs")
         else:
-            # Default: only remove finished (non-running, non-queued) job dirs
+            # Default: only remove finished job dirs (preempted jobs are
+            # still pending requeue, so keep them alongside running/queued)
             count = 0
             for job_dir in list(JOBS_DIR.iterdir()):
                 if not job_dir.is_dir():
@@ -1561,7 +1562,7 @@ def cmd_clear(args):
                 except OSError:
                     # Transient read error — skip, don't delete
                     continue
-                if meta.get("status") in ("running", "queued"):
+                if meta.get("status") in ("running", "queued", "preempted"):
                     continue
                 shutil.rmtree(job_dir)
                 count += 1
