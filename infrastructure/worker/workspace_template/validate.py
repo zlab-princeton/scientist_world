@@ -504,6 +504,10 @@ def check_imports_not_gitignored() -> list[str]:
         )
     except (subprocess.SubprocessError, FileNotFoundError):
         return errors
+    if tracked_result.returncode != 0:
+        # Not a git repository (or git failed): there is no tracked fileset
+        # to check against, so every import would be reported as missing.
+        return errors
     tracked = {line.strip() for line in tracked_result.stdout.splitlines() if line.strip()}
 
     import glob as _glob
