@@ -104,11 +104,11 @@ def main():
 
     # Skip already downloaded
     todo = [aid for aid in all_ids if not (pdf_dir / f"{aid}.pdf").exists()]
+    already = len(all_ids) - len(todo)
 
     if args.limit:
         todo = todo[:args.limit]
 
-    already = len(all_ids) - len(todo)
     print(f"Total: {len(all_ids)}  |  To download: {len(todo)}  |  Already downloaded: {already}")
 
     downloaded = 0
