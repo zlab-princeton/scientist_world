@@ -237,6 +237,45 @@ def test_parse_turn_action(tmp_path: Path) -> None:
         assert parse_turn_action(tmp_path) is None
 
 
+@pytest.mark.parametrize("decision", ["continue", "cancel"])
+def test_checkpoint_only_action_outside_a_checkpoint_submits_nothing(
+        tmp_path: Path, monkeypatch, decision) -> None:
+    """``continue`` / ``cancel`` only answer a checkpoint; as a turn's
+    action they must not dispatch a GPU job."""
+    from evaluation import loop
+
+    submitted: list = []
+
+    class _Nexus:
+        def submit_job(self, *args, **kwargs):
+            submitted.append((args, kwargs))
+            return "run-1", "hive-1"
+
+        def get_job(self, run_id):
+            return {}
+
+        def wait_for_job(self, project_id, run_id, timeout=300):
+            return {"event": "completed"}
+
+    def invoke(env_dir, profile, prompt, **kwargs):
+        (env_dir / "action.yaml").write_text(f"action: {decision}\n")
+        return 0, "", ""
+
+    monkeypatch.setattr(loop.agent, "invoke", invoke)
+    monkeypatch.setattr(loop._config, "load", lambda: {})
+    monkeypatch.setattr(loop._config, "nexus_pick", lambda **kwargs: "gpu")
+    monkeypatch.setattr(loop._container, "rebuild_if_changed",
+                        lambda env_dir, **kwargs: (None, None, False))
+    monkeypatch.setattr(loop.git, "commit", lambda *args, **kwargs: None)
+
+    result = loop.run(
+        tmp_path, Profile(name="p", scaffold="codex", model="m"), _Nexus(),
+        "proj", "start", max_turns=2, gpu_budget_hours=10.0,
+    )
+    assert submitted == []
+    assert result.reason == "max_turns"
+
+
 def test_every_job_requests_at_least_one_gpu(tmp_path: Path) -> None:
     """Current behaviour (README, Limitations): ``gpus: 0`` is raised to 1."""
     (tmp_path / "action.yaml").write_text("action: submit\ngpus: 0\n")

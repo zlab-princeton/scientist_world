@@ -238,6 +238,15 @@ def run(
             log.info("Turn %d: agent signalled done", turn)
             return LoopResult(turns=turn, last_action="done", reason="done")
 
+        if action.action != "submit":
+            # ``continue`` / ``cancel`` only answer a checkpoint (handled
+            # in the job-wait loop below); outside one there is no job to
+            # act on, so don't treat them as a submit.
+            log.warning("Turn %d: checkpoint-only action %r outside a checkpoint",
+                        turn, action.action)
+            prompt = _render("on_invalid_action")
+            continue
+
         # action == "submit"
         if gpu_hours_used >= gpu_budget_hours:
             prompt = _render(
