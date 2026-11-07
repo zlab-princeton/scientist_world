@@ -278,7 +278,8 @@ def _snapshot_ref_sheets(ref_dir: Path = REF_DIR) -> dict[str, int]:
     for name in REF_SHEETS:
         path = ref_dir / name
         if path.exists():
-            counts[name] = len(path.read_text().strip().split("\n"))
+            counts[name] = sum(1 for line in path.read_text().splitlines()
+                               if line.strip())
         else:
             counts[name] = 0
     return counts
