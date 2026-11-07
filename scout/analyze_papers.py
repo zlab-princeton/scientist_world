@@ -848,6 +848,14 @@ def main():
                     print(f"  Progress: {done_count}/{len(ready)}")
         return success, failed
 
+    if args.limit is not None:
+        # Fix the selection once; limiting again on each retry pass would move
+        # on to the next papers after any paper of this selection finished.
+        pending = [aid for aid in all_ids if not is_done(aid)]
+        print(f"  Already done: {len(all_ids) - len(pending)}  |  Remaining: {len(pending)}")
+        all_ids = pending[:args.limit]
+        print(f"  Processing: {len(all_ids)} (limited)")
+
     total_retries_used = 0
     no_progress_retries = 0
     pass_num = 0
@@ -856,10 +864,6 @@ def main():
     while True:
         todo = [aid for aid in all_ids if not is_done(aid)]
         print(f"  Already done: {len(all_ids) - len(todo)}  |  Remaining: {len(todo)}")
-
-        if args.limit is not None:
-            todo = todo[:args.limit]
-            print(f"  Processing: {len(todo)} (limited)")
 
         if not todo:
             print("Nothing to process.")
