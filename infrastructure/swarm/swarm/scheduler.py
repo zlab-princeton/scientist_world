@@ -1929,8 +1929,31 @@ class Scheduler:
                 raise ValueError(f"Paper {arxiv_id} is already active")
             if any(j.arxiv_id == arxiv_id for j in self.queue):
                 raise ValueError(f"Paper {arxiv_id} is already in the queue")
-            self.completed.pop(arxiv_id, None)
+            previous = self.completed.pop(arxiv_id, None)
 
+        try:
+            return self._recover_paper(
+                arxiv_id, profile=profile, no_workflow=no_workflow, fresh=fresh,
+                dispatch=dispatch, skip_github=skip_github,
+            )
+        except Exception:
+            # A failed recovery must not drop the paper's completed record.
+            if previous is not None:
+                with self._lock:
+                    if (arxiv_id not in self.active
+                            and not any(j.arxiv_id == arxiv_id for j in self.queue)):
+                        self.completed.setdefault(arxiv_id, previous)
+            raise
+
+    def _recover_paper(
+        self,
+        arxiv_id: str,
+        profile: str | None,
+        no_workflow: bool,
+        fresh: bool,
+        dispatch: bool,
+        skip_github: bool,
+    ) -> PaperJob:
         meta_path = PAPERS_DIR / arxiv_id / "meta.json"
         if not meta_path.exists():
             raise FileNotFoundError(f"No state found for {arxiv_id}")

@@ -980,6 +980,38 @@ def test_recover_paper_requires_a_recorded_recovery_action(monkeypatch, tmp_path
         scheduler.recover_paper("unknown")
 
 
+def test_recover_paper_keeps_completed_record_when_recovery_fails(monkeypatch, tmp_path: Path):
+    import pytest
+
+    papers_dir = tmp_path / "papers"
+    for arxiv_id, meta in {
+        "done1": {"status": "done"},
+        "cont1": {"status": "paused", "recovery_action": "continue"},
+    }.items():
+        (papers_dir / arxiv_id).mkdir(parents=True)
+        (papers_dir / arxiv_id / "meta.json").write_text(json.dumps({"arxiv_id": arxiv_id, **meta}))
+    monkeypatch.setattr("swarm.scheduler.PAPERS_DIR", papers_dir)
+
+    scheduler = Scheduler.__new__(Scheduler)
+    scheduler._lock = threading.Lock()
+    scheduler.queue = deque()
+    scheduler.active = {}
+    done_record, cont_record = object(), object()
+    scheduler.completed = {"done1": done_record, "cont1": cont_record}
+
+    def failing_continue(arxiv_id, **kwargs):
+        raise FileNotFoundError("no workspace")
+
+    scheduler.continue_paper = failing_continue
+
+    with pytest.raises(ValueError, match="no recorded recovery action"):
+        scheduler.recover_paper("done1")
+    with pytest.raises(FileNotFoundError):
+        scheduler.recover_paper("cont1")
+
+    assert scheduler.completed == {"done1": done_record, "cont1": cont_record}
+
+
 def test_recover_paper_dispatches_on_recovery_action(monkeypatch, tmp_path: Path):
     papers_dir = tmp_path / "papers"
     (papers_dir / "a1").mkdir(parents=True)
