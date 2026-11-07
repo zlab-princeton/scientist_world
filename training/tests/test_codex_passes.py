@@ -194,6 +194,24 @@ def test_rephrase_batch_rewords_the_best_scoring_examples(monkeypatch, tmp_path)
     assert {(m, e) for _, m, e in seen} == {(batch.DEFAULT_MODEL, batch.DEFAULT_EFFORT)}
 
 
+def test_rephrase_batch_skips_non_finite_scores(monkeypatch, tmp_path):
+    # Reasoning examples keep their score as-is, so a missing score can be NaN;
+    # it must not take a top-N slot.
+    batch = rephrase_batch
+    examples = [
+        {"run_id": f"r{score}", "task_id": "p1", "test_score": score,
+         "conversation": [{}, {}, {"content": f"completion {score}"}]}
+        for score in (1.0, float("nan"), 3.0, 2.0)]
+    out = _point_at(monkeypatch, batch, tmp_path, "rephrased.jsonl",
+                    ["--n", "2", "--workers", "1"])
+    monkeypatch.setattr(batch, "sft_examples", lambda **kw: examples)
+    monkeypatch.setattr(batch, "rephrase",
+                        lambda completion, model=None, effort=None: completion)
+
+    batch.main()
+    assert sorted(r["run_id"] for r in _records(out)) == ["r2.0", "r3.0"]
+
+
 def test_judge_craft_batch_scores_every_final_idea(monkeypatch, tmp_path):
     batch = judge_craft_batch
     rows = [make_row("p1", "innovate", "a1"), make_row("p1", "improve", "a2"),

@@ -21,7 +21,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from data_prep import HELDOUT_PAPERS, add_data_argument, sft_examples
+from data_prep import HELDOUT_PAPERS, _finite, add_data_argument, sft_examples
 from rephrase import DEFAULT_EFFORT, DEFAULT_MODEL, rephrase
 
 _OUT = Path(__file__).resolve().parent / "out"
@@ -57,7 +57,7 @@ def main():
 
     sft = sft_examples(source=args.data, exclude_papers=HELDOUT_PAPERS,
                        n_single_backfill=None)
-    scored = [e for e in sft if isinstance(e["test_score"], (int, float))]
+    scored = [e for e in sft if _finite(e["test_score"])]
     scored.sort(key=lambda e: e["test_score"], reverse=True)
     top = scored[: args.n]
     done = _load_done()
