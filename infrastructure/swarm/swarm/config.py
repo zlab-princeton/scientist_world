@@ -582,7 +582,7 @@ def load_config() -> SwarmConfig:
                     f"Available: {list(profiles.keys())}"
                 )
             # Apply profile values as base
-            for k, v in profiles[profile_name].items():
+            for k, v in (profiles[profile_name] or {}).items():
                 if hasattr(config.worker, k):
                     setattr(config.worker, k, v)
             config.worker.profile = profile_name
@@ -685,9 +685,9 @@ def load_config() -> SwarmConfig:
             )
 
         if "nexus" in raw:
-            for k, v in raw["nexus"].items():
-                if k == "resources" and isinstance(v, dict):
-                    for rk, rv in v.items():
+            for k, v in (raw["nexus"] or {}).items():
+                if k == "resources" and (v is None or isinstance(v, dict)):
+                    for rk, rv in (v or {}).items():
                         if hasattr(config.nexus.resources, rk):
                             setattr(config.nexus.resources, rk, rv)
                 elif hasattr(config.nexus, k):

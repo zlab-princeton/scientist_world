@@ -441,6 +441,19 @@ class TestConfigValidation:
         assert config.pool_size == 3
         assert config.workflows == {}
 
+    def test_empty_nexus_and_profile_bodies_are_tolerated(self, tmp_swarm_dir):
+        from swarm.config import ResourcesConfig
+
+        path = tmp_swarm_dir / "config.yaml"
+        path.write_text("nexus:\npool_size: 3\n")
+        assert load_config().pool_size == 3
+
+        path.write_text("nexus:\n  resources:\n")
+        assert load_config().nexus.resources == ResourcesConfig()
+
+        path.write_text("profiles:\n  p:\nworker:\n  profile: p\n")
+        assert load_config().worker.profile == "p"
+
     def test_milestone_names_match_scheduler_and_worker(self):
         from infrastructure.worker.parsing import VALID_MILESTONES
         from swarm.config import MILESTONES, WORKFLOW_ROLES
