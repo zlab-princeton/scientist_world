@@ -7237,12 +7237,13 @@ def _git_commit_and_push(
             cwd=str(workspace), capture_output=True, timeout=_LOCAL_GIT_TIMEOUT,
         )
         allow_empty = ["--allow-empty"] if (result.returncode == 0 and commit_msg) else []
+        committed = False
         if result.returncode != 0 or commit_msg:
-            subprocess.run(
+            committed = subprocess.run(
                 ["git", "commit", *allow_empty, "-m", msg],
                 cwd=str(workspace), capture_output=True, timeout=_LOCAL_GIT_TIMEOUT,
                 env=env,
-            )
+            ).returncode == 0
         else:
             log.debug("No changes to commit in %s", workspace)
 
@@ -7256,11 +7257,12 @@ def _git_commit_and_push(
             _github_create_and_push(workspace, paper, github_org)
 
         # Push. If it still fails, strip trajectory from the commit,
-        # amend, and retry as a last resort.
+        # amend, and retry as a last resort. Only a commit made above may
+        # be amended: an older HEAD may already be on the remote.
         result = _git_push_with_upstream_fallback(
             workspace, env=env, timeout=_ttl(),
         )
-        if result.returncode != 0 and traj_dir.is_dir():
+        if result.returncode != 0 and committed and traj_dir.is_dir():
             log.warning("Push failed, retrying without trajectory: %s",
                      result.stderr[:200])
             subprocess.run(

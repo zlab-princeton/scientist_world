@@ -1110,3 +1110,46 @@ def test_scan_distinfo_packages_mounts_overlay_on_the_fallback_sif(monkeypatch, 
     assert len(commands) == 1
     assert commands[0][:2] == ["apptainer", "exec"]
     assert str(agent_sif) in commands[0]
+
+
+def test_failed_push_does_not_amend_an_already_pushed_commit(monkeypatch, tmp_path: Path):
+    """With nothing new to commit, the "retry without trajectory" path
+    must not rewrite HEAD: it is the commit origin already has."""
+    import subprocess
+
+    from swarm import scheduler as scheduler_mod
+
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", "/dev/null")
+    env = scheduler_mod._git_env()
+
+    def git(cwd, *args):
+        out = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True,
+                             text=True, env=env)
+        assert out.returncode == 0, out.stderr
+        return out.stdout.strip()
+
+    remote = tmp_path / "remote.git"
+    git(tmp_path, "init", "--bare", "-b", "main", str(remote))
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    git(ws, "init", "-b", "main")
+    git(ws, "remote", "add", "origin", str(remote))
+    git(ws, "commit", "--allow-empty", "-m", "Initial workspace")
+    (ws / "trajectory").mkdir()
+    (ws / "trajectory" / "turn_0001_raw.jsonl").write_text("{}\n")
+    (ws / "notes.txt").write_text("work\n")
+
+    assert scheduler_mod._git_commit_and_push(ws, "m") is True
+    pushed = git(remote, "rev-parse", "main")
+    assert git(ws, "rev-parse", "HEAD") == pushed
+
+    # Nothing changed since; the push now fails for an unrelated reason.
+    monkeypatch.setattr(
+        scheduler_mod, "_git_push_with_upstream_fallback",
+        lambda *a, **k: subprocess.CompletedProcess(a, 1, stdout="",
+                                                    stderr="network down"),
+    )
+    assert scheduler_mod._git_commit_and_push(ws, "m") is False
+
+    assert git(ws, "rev-parse", "HEAD") == pushed
