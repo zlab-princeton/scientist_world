@@ -370,6 +370,17 @@ class TestStop:
         assert NexusJob.load_all() == []
         assert not (tmp_nexus_dir / "daemon.pid").exists()
 
+    def test_stop_with_pid_reused_by_another_user(self, tmp_nexus_dir, capsys):
+        """A PID now owned by someone else's process means our daemon is gone."""
+        (tmp_nexus_dir / "daemon.pid").write_text(str(IMPOSSIBLE_PID))
+        kill = MagicMock(side_effect=PermissionError())
+        with patch.object(cli.os, "kill", kill):
+            assert cli.main(["stop"]) == 0
+
+        kill.assert_called_once_with(IMPOSSIBLE_PID, 0)
+        assert "is not running" in capsys.readouterr().out
+        assert not (tmp_nexus_dir / "daemon.pid").exists()
+
 
 class TestParser:
     def test_no_command_prints_help(self, capsys):

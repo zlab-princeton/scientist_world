@@ -342,7 +342,8 @@ def cmd_stop(args):
     # Check if process exists
     try:
         os.kill(pid, 0)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
+        # PermissionError: the PID now belongs to someone else's process.
         print(f"Daemon process {pid} is not running. Cleaning up PID file.")
         DAEMON_PID_PATH.unlink()
         return 0
