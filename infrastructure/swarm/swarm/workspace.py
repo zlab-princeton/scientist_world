@@ -517,7 +517,7 @@ fi
 bad_paths=""
 while IFS= read -r -d '' f; do
     case "$f" in
-        */site-packages/*|*/node_modules/*|*/__pycache__/*|*.egg-info/*|*/.venv/*|*/.tox/*)
+        site-packages/*|*/site-packages/*|node_modules/*|*/node_modules/*|__pycache__/*|*/__pycache__/*|*.egg-info/*|.venv/*|*/.venv/*|.tox/*|*/.tox/*)
             bad_paths="${bad_paths}  ${f}"$'\n'
             ;;
         local-packages/*|*/local-packages/*|local_packages*/*|*/local_packages*/*|local-pkgs/*|*/local-pkgs/*|local_pkgs/*|*/local_pkgs/*)

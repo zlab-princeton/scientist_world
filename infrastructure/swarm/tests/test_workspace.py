@@ -1,12 +1,13 @@
 """Tests for workspace creation."""
 
+import shutil
 import subprocess
 import pytest
 from pathlib import Path
 from unittest.mock import patch
 
 from swarm.paper import PaperInfo
-from swarm.workspace import create_workspace, _ensure_git_remote_url
+from swarm.workspace import create_workspace, _ensure_git_remote_url, _install_pre_commit_hook
 
 
 class TestCreateWorkspace:
@@ -143,3 +144,39 @@ class TestGitRemoteSetup:
             _ensure_git_remote_url(workspace, "origin", remote_url)
 
         assert any(cmd[:3] == ["git", "remote", "set-url"] for cmd in calls)
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="needs the git executable")
+class TestPreCommitHook:
+    @staticmethod
+    def _commit(repo, rel_path):
+        def git(*args):
+            return subprocess.run(
+                ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t",
+                 "-c", f"core.hooksPath={repo / '.git' / 'hooks'}", *args],
+                capture_output=True, text=True,
+            )
+        git("init", "-q")
+        _install_pre_commit_hook(repo)
+        target = repo / rel_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x = 1\n")
+        git("add", "-f", rel_path)
+        return git("commit", "-q", "-m", "add")
+
+    @pytest.mark.parametrize("rel_path", [
+        ".venv/lib/mod.py",
+        "site-packages/pkg/mod.py",
+        "node_modules/pkg/index.js",
+        "__pycache__/mod.cpython-311.pyc",
+        ".tox/py311/mod.py",
+        "src/.venv/lib/mod.py",
+    ])
+    def test_blocks_installed_content_at_any_depth(self, tmp_path, rel_path):
+        result = self._commit(tmp_path, rel_path)
+        assert result.returncode != 0, result.stderr
+        assert "never-legitimate" in result.stderr
+
+    def test_allows_ordinary_source(self, tmp_path):
+        result = self._commit(tmp_path, "src/mod.py")
+        assert result.returncode == 0, result.stderr
