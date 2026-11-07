@@ -22,6 +22,7 @@ and a baseline ``base``):
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -448,6 +449,24 @@ def test_cell_value_rejects_non_numbers() -> None:
     blob = {"experiments": {"exp1": {"results": {"ours": {"acc": True, "f1": "0.9"}}}}}
     assert nz._cell_value(blob, "exp1", "ours", "acc") is None
     assert nz._cell_value(blob, "exp1", "ours", "f1") is None
+
+
+def test_cell_value_rejects_non_finite_numbers(eval_config) -> None:
+    blob = {"experiments": {"exp1": {"results": {"ours": {
+        "acc": float("nan"), "loss": float("inf")}}}}}
+    assert nz._cell_value(blob, "exp1", "ours", "acc") is None
+    assert nz._cell_value(blob, "exp1", "ours", "loss") is None
+
+    # One NaN cohort value must not poison every coefficient.
+    data_dir = eval_config(profiles=_profiles("m1", "m2", "m3", "m4"))
+    paper_dir = _paper(data_dir)
+    for name, scores in COHORT.items():
+        _run(paper_dir, name, graded=scores)
+    _run(paper_dir, "m4", graded=_scores(float("nan"), 2.0))
+    nz.recompute_paper(PAPER)
+    co = _coeffs()
+    assert co["excluded"] is False
+    assert all(math.isfinite(c["coefficient"]) for c in co["cells"])
 
 
 def test_alias_fallback_single_other_row() -> None:

@@ -277,7 +277,8 @@ def _cell_value(
 
     def _num(d: dict) -> float | None:
         v = d.get(metric)
-        if isinstance(v, (int, float)) and not isinstance(v, bool):
+        if (isinstance(v, (int, float)) and not isinstance(v, bool)
+                and math.isfinite(v)):
             return float(v)
         return None
 
